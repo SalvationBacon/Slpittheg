@@ -88,7 +88,6 @@
     .vote-header  { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
     .vote-name    { flex: 1; font-size: 15px; color: #F5E6C8; }
     .vote-label   { font-size: 9px; letter-spacing: 2px; color: #C9A84C; text-transform: uppercase; background: #C9A84C18; border: 1px solid #C9A84C33; border-radius: 20px; padding: 2px 8px; }
-    .vote-photo   { width: 100%; border-radius: 6px; max-height: 180px; object-fit: cover; margin-bottom: 10px; cursor: pointer; border: 1px solid #C9A84C22; display: block; }
     .vote-tally   { font-size: 11px; color: #F5E6C855; margin-bottom: 10px; letter-spacing: 1px; }
     .vote-tally span { color: #C9A84C; }
     .vote-btns    { display: flex; gap: 8px; }
@@ -114,6 +113,28 @@
     .verdict.pass .verdict-title { color: #C9A84C; }
     .verdict.fail .verdict-title { color: #ff7777; }
     .verdict-reason { font-size: 12px; color: #F5E6C888; }
+
+    /* ── Split analysis (G score) ── */
+    .an-hint  { font-size: 12px; color: #F5E6C8AA; text-align: center; margin-bottom: 8px; letter-spacing: 1px; line-height: 1.5; min-height: 54px; display: flex; align-items: center; justify-content: center; }
+    .an-hint b { color: #C9A84C; font-weight: normal; }
+    .an-stage { text-align: center; }
+    .an-wrap, .ph-wrap { position: relative; display: inline-block; line-height: 0; max-width: 100%; overflow: hidden; border-radius: 6px; border: 1px solid #C9A84C44; vertical-align: top; }
+    .an-wrap  { touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair; }
+    .an-wrap img, .ph-wrap img { max-width: 100%; display: block; pointer-events: none; -webkit-user-drag: none; }
+    .an-wrap img { max-height: 50vh; }
+    .ov-box   { position: absolute; border: 2px solid #C9A84C; border-radius: 3px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.35); pointer-events: none; }
+    .ov-mid   { position: absolute; left: 0; right: 0; border-top: 2px dashed #C9A84CCC; pointer-events: none; }
+    .ov-line  { position: absolute; left: 0; right: 0; border-top: 3px solid #fff; box-shadow: 0 0 6px #000; pointer-events: none; }
+    .an-handle { position: absolute; left: 0; right: 0; height: 40px; transform: translateY(-50%); cursor: ns-resize; touch-action: none; }
+    .an-handle .ov-line { top: 50%; }
+    .an-handle::after { content: '⇕ drag'; position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-size: 10px; background: #000c; color: #fff; padding: 2px 7px; border-radius: 10px; line-height: 1.5; font-family: Georgia, serif; }
+    .score-chip { position: absolute; left: 6px; top: 6px; background: #000d; color: #C9A84C; border: 1px solid #C9A84C; border-radius: 20px; padding: 3px 9px; font-size: 13px; line-height: 1.3; font-family: Georgia, serif; }
+    .an-result { text-align: center; margin: 12px 0 2px; }
+    .an-score  { font-size: 46px; color: #C9A84C; line-height: 1; text-shadow: 0 0 24px #C9A84C55; }
+    .an-tier   { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #F5E6C8; margin-top: 6px; }
+    .score-line { font-size: 12px; color: #C9A84C; margin: 8px 0 10px; letter-spacing: 1px; text-align: center; }
+    .score-line em { color: #ff9999; font-style: normal; }
+    .btn-link  { background: none; border: none; color: #F5E6C844; font-size: 10px; letter-spacing: 1px; cursor: pointer; font-family: Georgia, serif; display: block; margin: 10px auto 0; text-decoration: underline; }
 
     /* ── Settings panel (slides in from right) ── */
     .settings-panel { position: fixed; inset: 0; z-index: 110; display: none; justify-content: flex-end; }
@@ -256,7 +277,7 @@
     <div class="celebrate" id="celebrate">
       <img src="img-celebrate.png" style="width:180px;height:auto;margin-bottom:20px" alt=""/>
       <div class="celebrate-text">Split!</div>
-      <div class="celebrate-sub">The G has been split 🖤</div>
+      <div class="celebrate-sub" id="celebrate-sub">The G has been split 🖤</div>
     </div>
 
     <!-- ══ Settings panel ══ -->
@@ -329,6 +350,7 @@ const db = getFirestore(app)
 let groupCode = null, savedGroups = []
 let players = [], splits = [], pendingSplits = [], rejectedSplits = [], leaderVotes = [], currentView = 'board'
 let pendingPlayerId = null, photoB64 = null
+let an = null, anDrag = null   // split analysis in the log-a-split modal
 let unsubPlayers = null, unsubSplits = null, unsubPending = null, unsubRejected = null, unsubLeaderVotes = null, unsubGroup = null
 let isLeader = false, leaderDeviceId = null, leaderName = null, groupBusy = false
 let deviceId = localStorage.getItem('splitg-device-id') || (() => {
@@ -367,6 +389,7 @@ window.dismissInstall     = dismissInstall
 window.claimLeader        = claimLeader
 window.setMe              = setMe
 window.shareGroup         = shareGroup
+window.startLineDrag      = startLineDrag
 
 // ── Saved groups (localStorage) ───────────────────────────
 function loadSavedGroups() {
@@ -546,7 +569,7 @@ function activateGroup(code) {
   // Then sync live from Firestore
   unsubPlayers = onSnapshot(collection(db,'groups',code,'players'), snap => {
     players = snap.docs.map(d => ({id:d.id,...d.data()}))
-      .sort((a,b) => (a.createdAt?.seconds ?? 1e12) - (b.createdAt?.seconds ?? 1e12))
+      .sort((a,b) => (a.createdAt?.toMillis?.() ?? 1e15) - (b.createdAt?.toMillis?.() ?? 1e15))
     saveCache(code)
     scheduleRender()
   }, listenError)
@@ -785,7 +808,11 @@ function render() {
 
 // ── Board ──────────────────────────────────────────────────
 function renderBoard() {
-  const board = [...players].map(p=>({...p,count:splits.filter(s=>s.playerId===p.id).length})).sort((a,b)=>b.count-a.count)
+  const board = [...players].map(p=>{
+    const mine  = splits.filter(s=>s.playerId===p.id)
+    const scores = mine.map(s=>safeScore(s.score)).filter(x=>x!=null)
+    return {...p, count: mine.length, best: scores.length ? Math.max(...scores) : null}
+  }).sort((a,b)=>b.count-a.count)
   const el = document.getElementById('view-board')
 
   // Leader vote nominations
@@ -856,7 +883,8 @@ function renderBoard() {
           <span class="vote-label">Pending</span>
           ${isLeader ? `<button class="vote-del" onclick="deletePending('${ps.id}')" title="Reject">×</button>` : ''}
         </div>
-        ${ps.photo ? `<img class="vote-photo" src="${ps.photo}" alt="proof" onclick="viewPendingPhoto('${ps.id}')"/>` : ''}
+        ${ps.photo ? photoFrame(ps, `viewPendingPhoto('${ps.id}')`, '220px') : ''}
+        ${scoreLine(ps)}
         <div class="vote-tally">
           <span>${yesVotes} ✓</span> &nbsp;·&nbsp; <span style="color:#ff7777">${noVotes} ✗</span>
           &nbsp;·&nbsp; ${needed} of ${voters} needed
@@ -890,7 +918,7 @@ function renderBoard() {
     <div class="player-row">
       <span class="rank ${p.rank===1&&p.count>0?'top':''}">${p.rank===1&&p.count>0?'👑':'#'+p.rank}</span>
       <div class="avatar">${esc(p.avatar||'')}</div>
-      <div class="player-name">${esc(p.name)}${p.id===myPlayerId()?' <span style="font-size:10px;color:#C9A84C88;letter-spacing:1px">(YOU)</span>':''}</div>
+      <div class="player-name">${esc(p.name)}${p.id===myPlayerId()?' <span style="font-size:10px;color:#C9A84C88;letter-spacing:1px">(YOU)</span>':''}${p.best!=null?`<div style="font-size:10px;color:#C9A84C99;letter-spacing:1px;margin-top:2px">🎯 best ${p.best}%</div>`:''}</div>
       <div class="count">${p.count}</div>
       <button class="split-btn" onclick="openSplit('${p.id}')">Split</button>
     </div>`).join('') +
@@ -921,12 +949,13 @@ function renderLog() {
     const badge = isRejected
       ? `<span class="badge" style="background:#ff000018;color:#ff7777;border:1px solid #ff444433">✗ REJECTED${s.rejectedBy==='leader'?' BY LEADER':''}</span>`
       : `<span class="badge verified">✓ CONFIRMED</span>`
+    const scoreBadge = safeScore(s.score) != null ? ` <span class="badge verified">🎯 ${safeScore(s.score)}%</span>` : ''
     return `<div class="log-entry" style="${isRejected?'opacity:0.65':''}">
       ${thumb}
       <div style="flex:1">
         <div class="log-name" style="${isRejected?'text-decoration:line-through;color:#F5E6C888':''}">${esc(s.playerName)}</div>
         <div class="log-time">${time}</div>
-        ${badge}
+        ${badge}${scoreBadge}
       </div>
       ${isLeader && !isRejected ? `<button class="log-del" onclick="deleteSplit('${s.id}')" title="Remove split">×</button>` : ''}
       ${isLeader && isRejected  ? `<button class="log-del" onclick="deleteRejected('${s.id}')" title="Remove">×</button>` : ''}
@@ -936,6 +965,9 @@ function renderLog() {
 
 // ── Players ────────────────────────────────────────────────
 function renderPlayers() {
+  // Live updates re-render this tab — keep whatever is being typed in the name box
+  const prev = document.getElementById('new-name')
+  const typed = prev?.value || '', hadFocus = prev && document.activeElement === prev
   const leaderBadge = isLeader ? `<span style="font-size:9px;background:#C9A84C22;border:1px solid #C9A84C44;color:#C9A84C;padding:2px 8px;border-radius:20px;letter-spacing:1px;margin-left:8px">LEADER</span>` : ''
   document.getElementById('view-players').innerHTML = `
     <div style="margin-bottom:18px">
@@ -966,6 +998,9 @@ function renderPlayers() {
       <button class="btn-primary" onclick="shareGroup()">🔗 Share Invite Link</button>
       <div style="margin-top:10px;font-size:11px">Leader: <span style="color:#C9A84C">${leaderDeviceId ? esc(isLeader ? 'You' : (leaderName || 'Someone')) : 'None yet — claim it in ⚙ Settings'}</span></div>
     </div>`
+  const input = document.getElementById('new-name')
+  if (typed) input.value = typed
+  if (hadFocus) input.focus()
 }
 
 async function addPlayer() {
@@ -1006,7 +1041,7 @@ function resetPhotoArea() {
 
 function closeModal() {
   document.getElementById('modal').classList.remove('open')
-  pendingPlayerId=null; photoB64=null
+  pendingPlayerId=null; photoB64=null; an=null; anDrag=null
 }
 
 async function handlePhoto(input) {
@@ -1014,22 +1049,200 @@ async function handlePhoto(input) {
   const reader=new FileReader()
   reader.onload=async ev => {
     photoB64=await compressImage(ev.target.result)
-    document.getElementById('photo-area').innerHTML=`<img class="photo-preview" src="${photoB64}" alt="proof"/><button class="btn-ghost" onclick="clearPhoto()">Remove Photo</button>`
-    document.getElementById('action-btns').innerHTML=`<button class="btn-primary" onclick="confirmSplit()">✓ Confirm Split</button>`
+    an = null
+    document.getElementById('photo-area').innerHTML=`
+      <div class="an-hint" id="an-hint"></div>
+      <div class="an-stage"><div class="an-wrap" id="an-wrap"><img id="an-img" src="${photoB64}" alt="proof"/></div></div>
+      <div id="an-result"></div>
+      <button class="btn-ghost" onclick="clearPhoto()">Remove Photo</button>`
+    setupAnalyzer()
+    renderAnalyzer()
   }
   reader.readAsDataURL(file)
 }
 
+// ── Split analysis ─────────────────────────────────────────
+// The user boxes the G; we find the foam line (cream head above, dark stout below)
+// inside/around that box and score how close it sits to the middle of the G.
+// All coordinates are fractions (0–1) of the image size.
+
+function splitScore(a) {
+  const half = (a.y1 - a.y0) / 2
+  if (half <= 0 || a.line == null) return 0
+  const off = Math.abs(a.line - (a.y0 + half)) / half
+  return Math.round(100 * Math.max(0, 1 - off))
+}
+function scoreTier(n) {
+  return n >= 95 ? 'Perfect split 🎯' : n >= 80 ? 'Clean split' : n >= 60 ? 'Close' : n >= 30 ? 'Grazed the G' : 'Missed the G'
+}
+
+function detectLine(img, a) {
+  const W = img.naturalWidth, H = img.naturalHeight
+  const c = document.createElement('canvas'); c.width = W; c.height = H
+  const ctx = c.getContext('2d', { willReadFrequently: true })
+  ctx.drawImage(img, 0, 0)
+  const gx0 = a.x0*W, gx1 = a.x1*W, gy0 = a.y0*H, gy1 = a.y1*H, h = gy1 - gy0
+  // Middle of the box only — the glass edges are noisy
+  const cx0 = Math.round(gx0 + (gx1-gx0)*0.15), cx1 = Math.round(gx1 - (gx1-gx0)*0.15)
+  // Only just outside the G — anywhere further scores 0% anyway, and further up can be dark pub background
+  const sy0 = Math.max(0, Math.round(gy0 - h*0.15)), sy1 = Math.min(H-1, Math.round(gy1 + h*0.15))
+  const w = Math.max(1, cx1 - cx0), rows = sy1 - sy0 + 1
+  const px = ctx.getImageData(cx0, sy0, w, rows).data
+  const lum = new Float32Array(w * rows)
+  for (let n = 0; n < w * rows; n++) lum[n] = 0.299*px[n*4] + 0.587*px[n*4+1] + 0.114*px[n*4+2]
+  // Dark/light threshold halfway between the stout and the head in this area
+  const sorted = Array.from(lum).sort((p, q) => p - q)
+  const lo = sorted[Math.floor(sorted.length * 0.1)], hi = sorted[Math.floor(sorted.length * 0.9)]
+  if (hi - lo < 40) return { line: a.y1, confident: false }   // no contrast to work with
+  const T = (lo + hi) / 2
+  const dark = []
+  for (let r = 0; r < rows; r++) {
+    let n = 0
+    for (let x = 0; x < w; x++) if (lum[r*w + x] < T) n++
+    dark.push(n / w)
+  }
+  // Above the line it's all head (no dark); below, stout shows between the letter's strokes.
+  // So the line is the first row, going down, where dark pixels appear and stay.
+  const m = Math.max(2, Math.round(h * 0.08))
+  const avg = (r0, r1) => { let t = 0, c = 0; for (let r = Math.max(0, r0); r < Math.min(rows, r1); r++) { t += dark[r]; c++ } return c ? t / c : 0 }
+  for (let r = 0; r < rows - m; r++) {
+    if (dark[r] >= 0.3 && avg(r, r + m) >= 0.3) {
+      return { line: (sy0 + r) / H, confident: avg(r - m, r) < 0.1 && r > 0 }
+    }
+  }
+  return { line: a.y1, confident: false }
+}
+
+function anPoint(e) {
+  const r = document.getElementById('an-wrap').getBoundingClientRect()
+  return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
+           y: Math.min(1, Math.max(0, (e.clientY - r.top)  / r.height)) }
+}
+
+function setupAnalyzer() {
+  const wrap = document.getElementById('an-wrap')
+  wrap.addEventListener('pointerdown', e => {
+    if (anDrag) return
+    e.preventDefault()
+    const p = anPoint(e)
+    anDrag = { mode: 'box', sx: p.x, sy: p.y }
+    an = { x0: p.x, y0: p.y, x1: p.x, y1: p.y, line: null }
+    wrap.setPointerCapture(e.pointerId)
+    renderAnalyzer()
+  })
+  wrap.addEventListener('pointermove', e => {
+    if (!anDrag) return
+    const p = anPoint(e)
+    if (anDrag.mode === 'box') {
+      an.x0 = Math.min(anDrag.sx, p.x); an.x1 = Math.max(anDrag.sx, p.x)
+      an.y0 = Math.min(anDrag.sy, p.y); an.y1 = Math.max(anDrag.sy, p.y)
+    } else {
+      an.line = p.y; an.adjusted = true
+      an.score = splitScore(an)
+    }
+    renderAnalyzer()
+  })
+  const end = () => {
+    if (!anDrag) return
+    if (anDrag.mode === 'box') {
+      if (an.x1 - an.x0 < 0.03 || an.y1 - an.y0 < 0.03) an = null   // just a tap
+      else {
+        const det = detectLine(document.getElementById('an-img'), an)
+        an.line = det.line; an.auto = det.confident; an.adjusted = false
+        an.score = splitScore(an)
+      }
+    }
+    anDrag = null
+    renderAnalyzer()
+  }
+  wrap.addEventListener('pointerup', end)
+  wrap.addEventListener('pointercancel', end)
+}
+
+function startLineDrag(e) {
+  e.stopPropagation(); e.preventDefault()
+  anDrag = { mode: 'line' }
+  document.getElementById('an-wrap').setPointerCapture(e.pointerId)
+}
+
+function renderAnalyzer() {
+  const wrap = document.getElementById('an-wrap'); if (!wrap) return
+  wrap.querySelectorAll('.ov-box,.ov-mid,.an-handle').forEach(n => n.remove())
+  const hint = document.getElementById('an-hint'), result = document.getElementById('an-result')
+  const btns = document.getElementById('action-btns')
+  const skip = `<button class="btn-link" onclick="confirmSplit(true)">No G in the photo? Submit without a score</button>`
+
+  if (an) wrap.insertAdjacentHTML('beforeend', overlayHtml(an, true))
+
+  if (!an || an.line == null) {
+    hint.innerHTML = `<span>${anDrag ? 'Cover the whole <b>G</b>, top to bottom' : 'Drag a box around the <b>G</b> on the glass'}</span>`
+    result.innerHTML = ''
+    btns.innerHTML = skip
+    return
+  }
+  hint.innerHTML = `<span>${anDrag?.mode === 'line'
+    ? 'Line it up with where the foam meets the stout'
+    : an.auto || an.adjusted
+      ? 'Line off? <b>Drag the white line</b> · Wrong box? Drag a new one'
+      : "Couldn't spot the foam line — <b>drag the white line</b> onto it"}</span>`
+  result.innerHTML = `<div class="an-result">
+      <div class="an-score">${an.score}%</div>
+      <div class="an-tier">${scoreTier(an.score)}</div>
+    </div>`
+  btns.innerHTML = `<button class="btn-primary" onclick="confirmSplit()">✓ Submit ${an.score}% Split</button>` + skip
+}
+
+// Draws the G box, the target (middle of G) and the foam line over a photo
+function overlayHtml(a, editable) {
+  const pct = v => (v * 100).toFixed(2) + '%'
+  let h = `<div class="ov-box" style="left:${pct(a.x0)};top:${pct(a.y0)};width:${pct(a.x1-a.x0)};height:${pct(a.y1-a.y0)}"></div>`
+  if (a.line != null) {
+    h += `<div class="ov-mid" style="top:${pct((a.y0+a.y1)/2)}"></div>`
+    h += editable
+      ? `<div class="an-handle" style="top:${pct(a.line)}" onpointerdown="startLineDrag(event)"><div class="ov-line"></div></div>`
+      : `<div class="ov-line" style="top:${pct(a.line)}"></div>`
+  }
+  return h
+}
+
+// Firestore data comes from other people's phones — clamp before it goes near HTML/CSS
+function safeScore(v) {
+  return typeof v === 'number' && isFinite(v) ? Math.round(Math.min(100, Math.max(0, v))) : null
+}
+function safeAnalysis(a) {
+  if (!a || typeof a !== 'object') return null
+  const n = v => Math.min(1, Math.max(0, Number(v) || 0))
+  return { x0: n(a.x0), y0: n(a.y0), x1: n(a.x1), y1: n(a.y1), line: a.line == null ? null : n(a.line), adjusted: !!a.adjusted }
+}
+
+function photoFrame(s, onclick, maxH) {
+  const a = safeAnalysis(s.analysis), sc = safeScore(s.score)
+  return `<div style="text-align:center;margin-bottom:${sc!=null?0:10}px"><div class="ph-wrap" ${onclick?`onclick="${onclick}" style="cursor:pointer"`:''}>
+    <img src="${esc(s.photo)}" style="max-height:${maxH}" alt="proof"/>
+    ${a ? overlayHtml(a, false) : ''}
+    ${sc != null ? `<div class="score-chip">🎯 ${sc}%</div>` : ''}
+  </div></div>`
+}
+
+function scoreLine(s) {
+  const sc = safeScore(s.score)
+  if (sc == null) return ''
+  const a = safeAnalysis(s.analysis)
+  return `<div class="score-line">🎯 ${sc}% · ${scoreTier(sc)}${a?.adjusted ? ' · <em>✋ line moved by hand</em>' : ''}</div>`
+}
+
 function clearPhoto() {
-  photoB64=null
+  photoB64=null; an=null; anDrag=null
   resetPhotoArea()
   document.getElementById('action-btns').innerHTML=''
   document.getElementById('photo-input').value=''
 }
 
-async function confirmSplit() {
+async function confirmSplit(noScore) {
   if(!pendingPlayerId||!photoB64) return
   const player=players.find(p=>p.id===pendingPlayerId); if(!player) return
+  const scored = !noScore && an && an.line != null
+  const r4 = v => Math.round(v * 10000) / 10000
   try {
     // Write to pending — not splits — until majority vote yes
     await addDoc(collection(db,'groups',groupCode,'pending'),{
@@ -1039,7 +1252,9 @@ async function confirmSplit() {
       photo:         photoB64,
       submittedBy:   deviceId,
       submitterName: myName(),
-      votes:         {}
+      votes:         {},
+      score:         scored ? an.score : null,
+      analysis:      scored ? { x0:r4(an.x0), y0:r4(an.y0), x1:r4(an.x1), y1:r4(an.y1), line:r4(an.line), auto:!!an.auto, adjusted:!!an.adjusted } : null
     })
     closeModal()
     notify('Split submitted — waiting for the lads to vote 🗳')
@@ -1062,11 +1277,13 @@ async function castVote(pendingId, vote) {
         playerName: d.playerName,
         timestamp:  d.timestamp || serverTimestamp(),
         photo:      d.photo || null,
+        score:      d.score ?? null,
+        analysis:   d.analysis || null,
       }
       if (countVotes(votes,'yes') >= needed) {
         tx.set(doc(collection(db,'groups',groupCode,'splits')), entry)
         tx.delete(ref)
-        return 'confirmed'
+        return 'confirmed:' + (safeScore(d.score) ?? '')
       }
       if (countVotes(votes,'no') >= needed) {
         tx.set(doc(collection(db,'groups',groupCode,'rejected')), { ...entry, rejectedBy: 'vote' })
@@ -1078,7 +1295,11 @@ async function castVote(pendingId, vote) {
     })
     if (outcome === 'own')      showToast("You can't vote on your own split 🙄")
     if (outcome === 'gone')     showToast('That split was already decided')
-    if (outcome === 'confirmed') { const el=document.getElementById('celebrate'); el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2600) }
+    if (outcome.startsWith('confirmed')) {
+      const sc = outcome.split(':')[1]
+      document.getElementById('celebrate-sub').textContent = sc ? `🎯 ${sc}% — ${scoreTier(+sc)}` : 'The G has been split 🖤'
+      const el=document.getElementById('celebrate'); el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2600)
+    }
     if (outcome === 'rejected') notify('Split rejected by the lads ✗')
   } catch(e) { showToast(e.message) }
 }
@@ -1097,6 +1318,8 @@ async function deletePending(id) {
         playerName: d.playerName,
         timestamp:  d.timestamp || serverTimestamp(),
         photo:      d.photo || null,
+        score:      d.score ?? null,
+        analysis:   d.analysis || null,
         rejectedBy: 'leader'
       })
       tx.delete(ref)
@@ -1104,16 +1327,15 @@ async function deletePending(id) {
   } catch(e) { showToast(e.message) }
 }
 
-window.viewPendingPhoto = function(id) {
-  const s = pendingSplits.find(x=>x.id===id)
+function showPhoto(s) {
   if(!s?.photo) return
   const overlay = document.createElement('div')
-  overlay.style.cssText='position:fixed;inset:0;z-index:250;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;padding:20px;cursor:pointer'
+  overlay.style.cssText='position:fixed;inset:0;z-index:250;background:rgba(0,0,0,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;cursor:pointer'
   overlay.onclick=()=>document.body.removeChild(overlay)
-  const img = document.createElement('img')
-  img.src=s.photo; img.style.cssText='max-width:100%;max-height:90vh;border-radius:8px;border:1px solid #C9A84C44'
-  overlay.appendChild(img); document.body.appendChild(overlay)
+  overlay.innerHTML = photoFrame(s, '', '80vh') + scoreLine(s)
+  document.body.appendChild(overlay)
 }
+window.viewPendingPhoto = id => showPhoto(pendingSplits.find(x=>x.id===id))
 
 async function deleteSplit(id) {
   if (!isLeader) return
@@ -1124,15 +1346,7 @@ async function deleteSplit(id) {
 }
 
 function viewPhoto(id, type) {
-  const list = type==='rejected' ? rejectedSplits : splits
-  const s = list.find(x=>x.id===id)
-  if(!s?.photo) return
-  const overlay = document.createElement('div')
-  overlay.style.cssText='position:fixed;inset:0;z-index:250;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;padding:20px;cursor:pointer'
-  overlay.onclick=()=>document.body.removeChild(overlay)
-  const img = document.createElement('img')
-  img.src=s.photo; img.style.cssText='max-width:100%;max-height:90vh;border-radius:8px;border:1px solid #C9A84C44'
-  overlay.appendChild(img); document.body.appendChild(overlay)
+  showPhoto((type==='rejected' ? rejectedSplits : splits).find(x=>x.id===id))
 }
 
 async function deleteRejected(id) {
