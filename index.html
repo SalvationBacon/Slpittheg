@@ -136,6 +136,18 @@
     .score-line em { color: #ff9999; font-style: normal; }
     .btn-link  { background: none; border: none; color: #F5E6C844; font-size: 10px; letter-spacing: 1px; cursor: pointer; font-family: Georgia, serif; display: block; margin: 10px auto 0; text-decoration: underline; }
 
+    /* ── Record-a-split floating button ── */
+    .fab { position: fixed; z-index: 90; bottom: calc(20px + env(safe-area-inset-bottom)); right: max(16px, calc(50vw - 240px + 16px)); background: linear-gradient(135deg,#C9A84C,#a8862e); color: #1A0F00; border: none; border-radius: 30px; padding: 15px 22px; font-family: Georgia, serif; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; box-shadow: 0 6px 22px #000c, 0 0 0 1px #F5E6C833; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .fab:active { transform: scale(.96); }
+    .fab span { font-size: 18px; line-height: 1; }
+    .pick-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+    .pick-btn { flex: 1 1 calc(50% - 4px); background: #0d0800; border: 1px solid #C9A84C44; color: #F5E6C8; padding: 12px 8px; border-radius: 6px; font-family: Georgia, serif; font-size: 15px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .pick-btn .avatar { width: 28px; height: 28px; font-size: 13px; }
+    .pick-btn.me { border-color: #C9A84C; background: #C9A84C14; }
+    .modal-change { background: none; border: none; color: #C9A84C99; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; font-family: Georgia, serif; margin-left: 8px; vertical-align: middle; text-decoration: underline; }
+    .photo-choice { display: flex; gap: 8px; }
+    .photo-choice .btn-primary { flex: 1; margin-top: 0; padding: 16px 8px; }
+
     /* ── Settings panel (slides in from right) ── */
     .settings-panel { position: fixed; inset: 0; z-index: 110; display: none; justify-content: flex-end; }
     .settings-panel.open { display: flex; }
@@ -261,11 +273,15 @@
       <div id="view-players" style="display:none"></div>
     </div>
 
+    <!-- Record a split (always visible) -->
+    <button class="fab" id="fab" onclick="recordSplit()"><span>🍺</span>Record a Split</button>
+
     <!-- Split modal -->
     <div class="modal" id="modal">
       <div class="modal-box">
         <div class="modal-title">Log a Split</div>
         <div class="modal-name" id="modal-player-name"></div>
+        <input type="file" accept="image/*" capture="environment" id="camera-input" style="display:none" onchange="handlePhoto(this)"/>
         <input type="file" accept="image/*" id="photo-input" style="display:none" onchange="handlePhoto(this)"/>
         <div id="photo-area"></div>
         <div id="action-btns"></div>
@@ -373,6 +389,8 @@ window.setView            = setView
 window.addPlayer          = addPlayer
 window.removePlayer       = removePlayer
 window.openSplit          = openSplit
+window.recordSplit        = recordSplit
+window.pickSplitPlayer    = pickSplitPlayer
 window.closeModal         = closeModal
 window.handlePhoto        = handlePhoto
 window.clearPhoto         = clearPhoto
@@ -1024,19 +1042,44 @@ async function removePlayer(id) {
 }
 
 // ── Split ──────────────────────────────────────────────────
+// Floating button: straight to your own split if we know who you are, else ask who split it
+function recordSplit() {
+  if (!players.length) { notify('Add your mates first 🍺'); setView('players'); return }
+  const me = myPlayer()
+  if (me) openSplit(me.id); else pickSplitPlayer()
+}
+
+function pickSplitPlayer() {
+  pendingPlayerId=null; photoB64=null; an=null; anDrag=null
+  document.getElementById('modal-player-name').textContent = 'Who split the G?'
+  const meId = myPlayerId()
+  document.getElementById('photo-area').innerHTML = `<div class="pick-grid">${players.map(p=>`
+    <button class="pick-btn ${p.id===meId?'me':''}" onclick="openSplit('${p.id}')">
+      <div class="avatar">${esc(p.avatar||'')}</div>${esc(p.name)}${p.id===meId?' <span style="font-size:9px;color:#C9A84C;letter-spacing:1px">YOU</span>':''}
+    </button>`).join('')}</div>`
+  document.getElementById('action-btns').innerHTML=''
+  document.getElementById('modal').classList.add('open')
+}
+
 function openSplit(playerId) {
-  pendingPlayerId=playerId; photoB64=null
-  document.getElementById('modal-player-name').textContent = players.find(p=>p.id===playerId)?.name||''
+  pendingPlayerId=playerId; photoB64=null; an=null; anDrag=null
+  const nameEl = document.getElementById('modal-player-name')
+  nameEl.textContent = players.find(p=>p.id===playerId)?.name||''
+  if (players.length > 1) nameEl.insertAdjacentHTML('beforeend', `<button class="modal-change" onclick="pickSplitPlayer()">change</button>`)
   resetPhotoArea()
   document.getElementById('action-btns').innerHTML=''
-  document.getElementById('photo-input').value=''
   document.getElementById('modal').classList.add('open')
 }
 
 function resetPhotoArea() {
+  document.getElementById('photo-input').value=''
+  document.getElementById('camera-input').value=''
   document.getElementById('photo-area').innerHTML=`
-    <button class="btn-primary" style="margin-top:0" onclick="document.getElementById('photo-input').click()">📸 Add Photo Proof (Required)</button>
-    <div style="text-align:center;font-size:11px;color:#F5E6C844;margin-top:8px;letter-spacing:1px">Photo required to log a split</div>`
+    <div class="photo-choice">
+      <button class="btn-primary" onclick="document.getElementById('camera-input').click()">📷 Take Photo</button>
+      <button class="btn-primary" onclick="document.getElementById('photo-input').click()">🖼 Upload</button>
+    </div>
+    <div style="text-align:center;font-size:11px;color:#F5E6C844;margin-top:8px;letter-spacing:1px">Photo of the glass required — make sure the G is in shot</div>`
 }
 
 function closeModal() {
@@ -1235,7 +1278,6 @@ function clearPhoto() {
   photoB64=null; an=null; anDrag=null
   resetPhotoArea()
   document.getElementById('action-btns').innerHTML=''
-  document.getElementById('photo-input').value=''
 }
 
 async function confirmSplit(noScore) {

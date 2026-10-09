@@ -43,6 +43,8 @@ Do NOT change this structure; live groups (e.g. `theboys156`) depend on it. Addi
 - Each device picks "which player are you?" once per group (board card / Players tab). Used for `submitterName`, `nomineeName`, `leaderName`.
 - Settings drawer: switch/add/remove groups, nominate self as leader (or claim it directly if the group has no leader).
 - All vote resolution (splits and leader) runs in Firestore transactions so simultaneous votes can't double-count.
+- **Record a Split** floating button (bottom-right, all tabs): goes straight to your own split if "me" is set (with a "change" link), otherwise asks who split it. Board rows still have per-player Split buttons.
+- Photo: **Take Photo** (`#camera-input`, `capture="environment"` opens the rear camera) or **Upload** (`#photo-input`, gallery).
 - Logging a split requires a photo. It goes to `pending`; the submitter cannot vote. Majority of the other players (`votesNeeded()` = `floor((players-1)/2)+1`) confirms → moved to `splits`; majority no → `rejected`.
 - **G score:** after picking the photo the user drags a box around the G. `detectLine()` finds the foam line (first row, going down, where dark stout pixels appear and stay — robust to the letter's own strokes) and `splitScore()` = 100% at the middle of the G, 0% at its top/bottom edge or beyond. The line can be dragged by hand; that sets `adjusted` and vote cards show "✋ line moved by hand". Overlay (box, dashed target, foam line, score chip) shown on vote cards and the full-screen viewer; score badge in Log; best score per player on Board; score in the celebration. Fully automatic G detection would need a paid vision API — deliberately not used.
 - Log shows confirmed and rejected entries (rejected greyed out, struck through).
