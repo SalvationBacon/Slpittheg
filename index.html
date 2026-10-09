@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black"/>
   <meta name="apple-mobile-web-app-title" content="Split the G"/>
-  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"/>
-  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="/apple-touch-icon-precomposed.png"/>
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png"/>
+  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon-precomposed.png"/>
   <link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Split%20the%20G%22%2C%22short_name%22%3A%22Split%20the%20G%22%2C%22start_url%22%3A%22%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230A0A0A%22%2C%22theme_color%22%3A%22%230A0A0A%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22%2Ficon.png%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fpng%22%7D%5D%7D"/>
   <title>Split the G</title>
   <style>
@@ -151,6 +151,7 @@
     /* ── Toast ── */
     .toast      { display: none; position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: #3a0000; border: 1px solid #ff4444; border-radius: 6px; color: #ff9999; padding: 10px 16px; font-size: 12px; z-index: 300; max-width: 340px; text-align: center; cursor: pointer; font-family: Georgia, serif; }
     .toast.show { display: block; }
+    .toast.info { background: #1A0F00; border-color: #C9A84C; color: #C9A84C; }
 
     /* ── Empty ── */
     .empty       { text-align: center; color: #F5E6C844; margin-top: 48px; }
@@ -181,7 +182,7 @@
   <!-- ══ Group onboarding screen ══ -->
   <div id="group-screen" class="group-screen">
     <div class="group-glass">
-      <img src="/img-splash.png" style="width:120px;height:auto" alt=""/>
+      <img src="img-splash.png" style="width:120px;height:auto" alt=""/>
     </div>
     <div class="group-title">Split the G</div>
     <div class="group-sub">Guinness Split Tracker</div>
@@ -216,7 +217,7 @@
   <div id="main-app" style="display:none">
 
     <div class="header">
-      <img src="/img-header.png" style="width:36px;height:36px;border-radius:6px" alt=""/>
+      <img src="img-header.png" style="width:36px;height:36px;border-radius:6px" alt=""/>
       <div class="header-text">
         <h1>Split the G</h1>
         <p>Guinness Split Tracker</p>
@@ -253,7 +254,7 @@
 
     <!-- Celebration -->
     <div class="celebrate" id="celebrate">
-      <img src="/img-celebrate.png" style="width:180px;height:auto;margin-bottom:20px" alt=""/>
+      <img src="img-celebrate.png" style="width:180px;height:auto;margin-bottom:20px" alt=""/>
       <div class="celebrate-text">Split!</div>
       <div class="celebrate-sub">The G has been split 🖤</div>
     </div>
@@ -309,9 +310,10 @@
 
 <script type="module">
 import { initializeApp }                        from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'
-import { getFirestore, collection, doc, addDoc,
-         deleteDoc, onSnapshot, query, orderBy,
-         serverTimestamp, updateDoc, getDoc }    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+import { getFirestore, collection, doc, addDoc, setDoc,
+         deleteDoc, onSnapshot, query, orderBy, limit,
+         serverTimestamp, getDoc, getDocs,
+         runTransaction }                        from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
 
 const app = initializeApp({
   apiKey:            "AIzaSyAEkm7dMNoeX2hHZSpeauOFTtegjAIYmnA",
@@ -327,8 +329,8 @@ const db = getFirestore(app)
 let groupCode = null, savedGroups = []
 let players = [], splits = [], pendingSplits = [], rejectedSplits = [], leaderVotes = [], currentView = 'board'
 let pendingPlayerId = null, photoB64 = null
-let unsubPlayers = null, unsubSplits = null, unsubPending = null, unsubRejected = null, unsubLeaderVotes = null
-let isLeader = false
+let unsubPlayers = null, unsubSplits = null, unsubPending = null, unsubRejected = null, unsubLeaderVotes = null, unsubGroup = null
+let isLeader = false, leaderDeviceId = null, leaderName = null, groupBusy = false
 let deviceId = localStorage.getItem('splitg-device-id') || (() => {
   const id = Math.random().toString(36).slice(2)
   localStorage.setItem('splitg-device-id', id)
@@ -362,6 +364,9 @@ window.castLeaderVote     = castLeaderVote
 window.cancelLeaderVote   = cancelLeaderVote
 window.viewPhoto          = viewPhoto
 window.dismissInstall     = dismissInstall
+window.claimLeader        = claimLeader
+window.setMe              = setMe
+window.shareGroup         = shareGroup
 
 // ── Saved groups (localStorage) ───────────────────────────
 function loadSavedGroups() {
@@ -379,24 +384,109 @@ function removeFromSavedGroups(code) {
   persistGroups()
 }
 
+// Local leader list is only a cache for instant UI — Firestore groups/{code}.leaderDeviceId is the truth
+function localLeaders() {
+  try { return JSON.parse(localStorage.getItem('splitg-leaders') || '[]') } catch { return [] }
+}
+function setLocalLeader(code, on) {
+  const l = localLeaders().filter(c => c !== code)
+  if (on) l.push(code)
+  localStorage.setItem('splitg-leaders', JSON.stringify(l))
+}
+
+// Which player this device is, per group
+function meMap() {
+  try { return JSON.parse(localStorage.getItem('splitg-me') || '{}') } catch { return {} }
+}
+function myPlayerId() { return meMap()[groupCode] || null }
+function myPlayer()   { return players.find(p => p.id === myPlayerId()) || null }
+function myName()     { return myPlayer()?.name || 'Someone' }
+function setMe(id) {
+  const m = meMap()
+  if (id) m[groupCode] = id; else delete m[groupCode]
+  localStorage.setItem('splitg-me', JSON.stringify(m))
+  if (isLeader && id) {
+    const name = players.find(p => p.id === id)?.name || null
+    setDoc(doc(db,'groups',groupCode), { leaderName: name }, { merge: true }).catch(() => {})
+  }
+  render()
+}
+
+// Majority of everyone except the person being voted on
+function votesNeeded() { return Math.max(1, Math.floor((players.length - 1) / 2) + 1) }
+function countVotes(votes, v) { return Object.values(votes || {}).filter(x => x === v).length }
+
 // ── Onboarding ─────────────────────────────────────────────
 
 function createGroup() {
-  const name = document.getElementById('create-input').value.trim()
+  const input = document.getElementById('create-input')
+  const name = input.value.trim()
   if (!name) { flashInput('create-input'); return }
-  const slug   = name.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,10)
-  const suffix = Math.floor(100 + Math.random()*900)
-  const code   = (slug||'group') + suffix
-  // Mark this device as leader for this group
-  const leaders = JSON.parse(localStorage.getItem('splitg-leaders') || '[]')
-  if (!leaders.includes(code)) { leaders.push(code); localStorage.setItem('splitg-leaders', JSON.stringify(leaders)) }
-  enterGroup(code)
+  createGroupNamed(name).then(ok => { if (ok) input.value = '' })
 }
 
 function joinGroup() {
-  const raw = document.getElementById('join-input').value.trim().toLowerCase().replace(/[^a-z0-9]/g,'')
+  const input = document.getElementById('join-input')
+  const raw = input.value.trim().toLowerCase().replace(/[^a-z0-9]/g,'')
   if (!raw) { flashInput('join-input'); return }
-  enterGroup(raw)
+  joinCode(raw).then(ok => { if (ok) input.value = ''; else flashInput('join-input') })
+}
+
+// Resolves true/false, rejects on permission errors, and gives up after 5s on a bad connection
+function groupExists(code) {
+  const check = (async () => {
+    try { if ((await getDoc(doc(db,'groups',code))).exists()) return true } catch {}
+    // Older groups have no group doc — only subcollections
+    const p = await getDocs(query(collection(db,'groups',code,'players'), limit(1)))
+    return !p.empty
+  })()
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+  return Promise.race([check, timeout])
+}
+
+function setGroupButtonsBusy(busy) {
+  groupBusy = busy
+  for (const id of ['btn-create','btn-join']) {
+    const b = document.getElementById(id)
+    if (!b.dataset.label) b.dataset.label = b.textContent
+    b.innerHTML = busy ? '<span class="spinner"></span>Checking…' : b.dataset.label
+    b.disabled = busy
+  }
+}
+
+async function createGroupNamed(name) {
+  if (groupBusy) return false
+  setGroupButtonsBusy(true)
+  try {
+    const slug = name.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,10) || 'group'
+    let code = null
+    for (let i = 0; i < 6 && !code; i++) {
+      const c = slug + Math.floor(100 + Math.random()*900)
+      try { if (!(await groupExists(c))) code = c }
+      catch(e) { if (e.code === 'permission-denied') { listenError(e); return false } code = c } // offline: just go
+    }
+    if (!code) { showToast('Could not find a free code — try another name'); return false }
+    setLocalLeader(code, true)
+    setDoc(doc(db,'groups',code), {
+      name, createdAt: serverTimestamp(), leaderDeviceId: deviceId, leaderName: null
+    }, { merge: true }).catch(e => showToast(e.message))
+    enterGroup(code)
+    return true
+  } finally { setGroupButtonsBusy(false) }
+}
+
+async function joinCode(code) {
+  if (savedGroups.includes(code)) { enterGroup(code); return true }
+  if (groupBusy) return false
+  setGroupButtonsBusy(true)
+  try {
+    let exists = true
+    try { exists = await groupExists(code) }
+    catch(e) { if (e.code === 'permission-denied') { listenError(e); return false } } // offline — let them in
+    if (!exists) { showToast(`No group found with code "${code}"`); return false }
+    enterGroup(code)
+    return true
+  } finally { setGroupButtonsBusy(false) }
 }
 
 function flashInput(id) {
@@ -419,18 +509,24 @@ function scheduleRender() {
 }
 
 // ── Group activation ───────────────────────────────────────
+function unsubAll() {
+  for (const u of [unsubPlayers, unsubSplits, unsubPending, unsubRejected, unsubLeaderVotes, unsubGroup]) if (u) u()
+  unsubPlayers = unsubSplits = unsubPending = unsubRejected = unsubLeaderVotes = unsubGroup = null
+}
+
+function listenError(e) {
+  if (e.code === 'permission-denied') showToast('Database access denied — the Firestore security rules need updating (see firestore.rules)')
+  else showToast(e.message)
+}
+
 function activateGroup(code) {
-  if (unsubPlayers)     { unsubPlayers();     unsubPlayers     = null }
-  if (unsubSplits)      { unsubSplits();      unsubSplits      = null }
-  if (unsubPending)     { unsubPending();     unsubPending     = null }
-  if (unsubRejected)    { unsubRejected();    unsubRejected    = null }
-  if (unsubLeaderVotes) { unsubLeaderVotes(); unsubLeaderVotes = null }
+  unsubAll()
 
   players = []; splits = []; pendingSplits = []; rejectedSplits = []; leaderVotes = []
   groupCode = code
   localStorage.setItem('splitg-active', code)
-  const leaders = JSON.parse(localStorage.getItem('splitg-leaders') || '[]')
-  isLeader = leaders.includes(code)
+  isLeader = localLeaders().includes(code)
+  leaderDeviceId = null; leaderName = null
   history.replaceState(null,'','#'+code)
 
   document.getElementById('group-screen').style.display = 'none'
@@ -450,32 +546,48 @@ function activateGroup(code) {
   // Then sync live from Firestore
   unsubPlayers = onSnapshot(collection(db,'groups',code,'players'), snap => {
     players = snap.docs.map(d => ({id:d.id,...d.data()}))
+      .sort((a,b) => (a.createdAt?.seconds ?? 1e12) - (b.createdAt?.seconds ?? 1e12))
     saveCache(code)
     scheduleRender()
-  }, e => showToast(e.message))
+  }, listenError)
 
   unsubSplits = onSnapshot(query(collection(db,'groups',code,'splits'), orderBy('timestamp','desc')), snap => {
     splits = snap.docs.map(d => ({id:d.id,...d.data()}))
     saveCache(code)
     scheduleRender()
-  }, e => showToast(e.message))
+  }, listenError)
 
   unsubPending = onSnapshot(query(collection(db,'groups',code,'pending'), orderBy('timestamp','desc')), snap => {
     pendingSplits = snap.docs.map(d => ({id:d.id,...d.data()}))
     saveCache(code)
     scheduleRender()
-  }, e => showToast(e.message))
+  }, listenError)
 
   unsubRejected = onSnapshot(query(collection(db,'groups',code,'rejected'), orderBy('timestamp','desc')), snap => {
     rejectedSplits = snap.docs.map(d => ({id:d.id,...d.data()}))
     saveCache(code)
     scheduleRender()
-  }, e => showToast(e.message))
+  }, listenError)
 
   unsubLeaderVotes = onSnapshot(collection(db,'groups',code,'leadervotes'), snap => {
     leaderVotes = snap.docs.map(d => ({id:d.id,...d.data()}))
     scheduleRender()
-  }, e => showToast(e.message))
+  }, listenError)
+
+  // Group doc holds the shared leader — every device derives isLeader from it
+  unsubGroup = onSnapshot(doc(db,'groups',code), snap => {
+    const data = snap.data() || {}
+    if (data.leaderDeviceId) {
+      leaderDeviceId = data.leaderDeviceId
+      leaderName     = data.leaderName || null
+      isLeader       = leaderDeviceId === deviceId
+      setLocalLeader(code, isLeader)
+    } else if (!snap.metadata.fromCache && localLeaders().includes(code)) {
+      // Older group: leadership was only stored on the creator's phone — publish it
+      claimLeader(true)
+    }
+    scheduleRender()
+  }, e => console.warn('group doc:', e.message)) // keep local leader cache
 
   setView('board')
   showInstallPrompt()
@@ -520,7 +632,7 @@ function closeSettings() {
 }
 
 function renderSettingsGroups() {
-  const leaders = JSON.parse(localStorage.getItem('splitg-leaders') || '[]')
+  const leaders = localLeaders()
   const el = document.getElementById('settings-group-list')
   if (!savedGroups.length) {
     el.innerHTML = `<div style="color:#F5E6C833;font-size:11px;letter-spacing:1px">No groups yet</div>`
@@ -528,7 +640,7 @@ function renderSettingsGroups() {
   }
   el.innerHTML = savedGroups.map(g => {
     const isActive   = g === groupCode
-    const amLeader   = leaders.includes(g)
+    const amLeader   = isActive ? isLeader : leaders.includes(g)
     return `
     <div class="group-row ${isActive?'active':''}">
       <div style="flex:1">
@@ -536,16 +648,29 @@ function renderSettingsGroups() {
         ${amLeader ? `<div style="font-size:9px;color:#C9A84C88;letter-spacing:1px;margin-top:2px">LEADER</div>` : ''}
       </div>
       ${isActive ? `<span class="group-row-tick">✓</span>` : ''}
-      ${!amLeader && isActive ? `<button onclick="nominateLeader()" style="background:#C9A84C18;border:1px solid #C9A84C44;color:#C9A84C;font-size:9px;letter-spacing:1px;padding:3px 8px;border-radius:4px;cursor:pointer;font-family:Georgia,serif;margin-right:4px">NOMINATE ME</button>` : ''}
+      ${!amLeader && isActive ? `<button onclick="${leaderDeviceId ? 'nominateLeader()' : 'claimLeader()'}" style="background:#C9A84C18;border:1px solid #C9A84C44;color:#C9A84C;font-size:9px;letter-spacing:1px;padding:3px 8px;border-radius:4px;cursor:pointer;font-family:Georgia,serif;margin-right:4px">${leaderDeviceId ? 'NOMINATE ME' : 'CLAIM LEADER'}</button>` : ''}
       <button class="group-row-del" onclick="removeGroupFromList('${g}')" title="Remove">×</button>
     </div>`
   }).join('')
 }
 
-window.claimLeader = function() {} // retired — replaced by vote
+async function claimLeader(silent) {
+  if (!silent && !confirm('This group has no leader yet. Become the leader?')) return
+  closeSettings()
+  try {
+    const ok = await runTransaction(db, async tx => {
+      const ref  = doc(db,'groups',groupCode)
+      const snap = await tx.get(ref)
+      const cur  = snap.exists() ? snap.data().leaderDeviceId : null
+      if (cur && cur !== deviceId) return false
+      tx.set(ref, { leaderDeviceId: deviceId, leaderName: myPlayer()?.name || null }, { merge: true })
+      return true
+    })
+    if (!silent) ok ? notify('You are now the leader 👑') : showToast('Someone else is already leader')
+  } catch(e) { if (!silent) showToast(e.message) }
+}
 
 async function nominateLeader() {
-  // Check if there's already an active nomination
   if (leaderVotes.length > 0) {
     showToast('A leader vote is already in progress')
     closeSettings()
@@ -556,67 +681,48 @@ async function nominateLeader() {
   try {
     await addDoc(collection(db,'groups',groupCode,'leadervotes'), {
       nomineeDeviceId: deviceId,
-      nomineeName:     '(you)', // placeholder — updated below
+      nomineeName:     myName(),
       timestamp:       serverTimestamp(),
       votes:           {}
     })
-    // Update with a display name from players if possible
-    showToast('Nomination submitted — the lads will vote 👑')
+    notify('Nomination submitted — the lads will vote 👑')
   } catch(e) { showToast(e.message) }
 }
 
 async function castLeaderVote(lvId, vote) {
+  const ref = doc(db,'groups',groupCode,'leadervotes',lvId)
+  const needed = votesNeeded()
   try {
-    const ref  = doc(db,'groups',groupCode,'leadervotes',lvId)
-    const snap = await getDoc(ref)
-    if (!snap.exists()) return
-    const data = snap.data()
-
-    if (data.nomineeDeviceId === deviceId) {
-      showToast("You can't vote on your own nomination 🙄")
-      return
-    }
-
-    await updateDoc(ref, { [`votes.${deviceId}`]: vote })
-
-    const snap2    = await getDoc(ref)
-    if (!snap2.exists()) return
-    const data2    = snap2.data()
-    const votes    = data2.votes || {}
-    const needed   = Math.max(1, Math.floor(players.length / 2) + 1)
-    const yesCount = Object.values(votes).filter(v=>v==='yes').length
-    const noCount  = Object.values(votes).filter(v=>v==='no').length
-
-    if (yesCount >= needed) {
-      // Grant leadership — store in Firestore so it persists group-wide
-      await updateDoc(doc(db,'groups',groupCode,'meta','leader'), {
-        deviceId, grantedAt: serverTimestamp()
-      }).catch(() =>
-        // doc may not exist yet — use setDoc via addDoc workaround
-        addDoc(collection(db,'groups',groupCode,'meta'), {
-          _id: 'leader', deviceId, grantedAt: serverTimestamp()
-        })
-      )
-      // Also save locally
-      const leaders = JSON.parse(localStorage.getItem('splitg-leaders') || '[]')
-      if (!leaders.includes(groupCode)) { leaders.push(groupCode); localStorage.setItem('splitg-leaders', JSON.stringify(leaders)) }
-      isLeader = true
-      await deleteDoc(ref)
-      render()
-      showToast('You are now the leader 👑')
-    } else if (noCount >= needed) {
-      await deleteDoc(ref)
-      showToast('Nomination rejected by the group')
-    }
+    // Transaction so two people voting at once can't both resolve it
+    const outcome = await runTransaction(db, async tx => {
+      const snap = await tx.get(ref)
+      if (!snap.exists()) return 'gone'
+      const d = snap.data()
+      if (d.nomineeDeviceId === deviceId) return 'own'
+      const votes = { ...(d.votes || {}), [deviceId]: vote }
+      if (countVotes(votes,'yes') >= needed) {
+        tx.set(doc(db,'groups',groupCode), {
+          leaderDeviceId: d.nomineeDeviceId, leaderName: d.nomineeName || null, grantedAt: serverTimestamp()
+        }, { merge: true })
+        tx.delete(ref)
+        return 'granted'
+      }
+      if (countVotes(votes,'no') >= needed) { tx.delete(ref); return 'rejected' }
+      tx.update(ref, { [`votes.${deviceId}`]: vote })
+      return 'voted'
+    })
+    if (outcome === 'own')      showToast("You can't vote on your own nomination 🙄")
+    if (outcome === 'granted')  notify('Vote passed — new leader 👑')
+    if (outcome === 'rejected') notify('Nomination rejected by the group')
   } catch(e) { showToast(e.message) }
 }
 
-window.cancelLeaderVote = async function(lvId) {
-  if (!isLeader) return
+async function cancelLeaderVote(lvId) {
+  const lv = leaderVotes.find(x => x.id === lvId)
+  if (!isLeader && lv?.nomineeDeviceId !== deviceId) return
   if (!confirm('Cancel this leader nomination?')) return
   try { await deleteDoc(doc(db,'groups',groupCode,'leadervotes',lvId)) }
   catch(e) { showToast(e.message) }
-}
 }
 
 function switchToGroup(code) {
@@ -628,9 +734,8 @@ function removeGroupFromList(code) {
   removeFromSavedGroups(code)
   // If removing active group, show onboarding
   if (code === groupCode) {
-    if (unsubPlayers) unsubPlayers()
-    if (unsubSplits)  unsubSplits()
-    players = []; splits = []; groupCode = null
+    unsubAll()
+    players = []; splits = []; pendingSplits = []; rejectedSplits = []; leaderVotes = []; groupCode = null
     localStorage.removeItem('splitg-active')
     document.getElementById('main-app').style.display    = 'none'
     document.getElementById('group-screen').style.display = ''
@@ -647,25 +752,18 @@ function switchSettingsMode(mode) {
   document.getElementById('smb-join').classList.toggle('active',   mode==='join')
 }
 
-function settingsCreate() {
-  const name = document.getElementById('settings-create-input').value.trim()
+async function settingsCreate() {
+  const input = document.getElementById('settings-create-input')
+  const name = input.value.trim()
   if (!name) return
-  const slug   = name.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,10)
-  const suffix = Math.floor(100 + Math.random()*900)
-  const code   = (slug||'group') + suffix
-  const leaders = JSON.parse(localStorage.getItem('splitg-leaders') || '[]')
-  if (!leaders.includes(code)) { leaders.push(code); localStorage.setItem('splitg-leaders', JSON.stringify(leaders)) }
-  document.getElementById('settings-create-input').value = ''
-  closeSettings()
-  enterGroup(code)
+  if (await createGroupNamed(name)) { input.value = ''; closeSettings() }
 }
 
-function settingsJoin() {
-  const raw = document.getElementById('settings-join-input').value.trim().toLowerCase().replace(/[^a-z0-9]/g,'')
+async function settingsJoin() {
+  const input = document.getElementById('settings-join-input')
+  const raw = input.value.trim().toLowerCase().replace(/[^a-z0-9]/g,'')
   if (!raw) return
-  document.getElementById('settings-join-input').value = ''
-  closeSettings()
-  enterGroup(raw)
+  if (await joinCode(raw)) { input.value = ''; closeSettings() }
 }
 
 // ── Views ──────────────────────────────────────────────────
@@ -695,9 +793,9 @@ function renderBoard() {
   if (leaderVotes.length) {
     leaderVoteHtml = leaderVotes.map(lv => {
       const votes    = lv.votes || {}
-      const yesVotes = Object.values(votes).filter(v=>v==='yes').length
-      const noVotes  = Object.values(votes).filter(v=>v==='no').length
-      const needed   = Math.max(1, Math.floor(players.length / 2) + 1)
+      const yesVotes = countVotes(votes,'yes')
+      const noVotes  = countVotes(votes,'no')
+      const needed   = votesNeeded()
       const myVote   = votes[deviceId]
       const isNominee = lv.nomineeDeviceId === deviceId
       return `<div class="vote-card" style="border-color:#C9A84C88">
@@ -708,11 +806,11 @@ function renderBoard() {
               <span style="color:#C9A84C88">${esc(lv.nomineeName)}</span> wants to be leader
             </div>
           </div>
-          ${isLeader ? `<button class="vote-del" onclick="cancelLeaderVote('${lv.id}')" title="Cancel">×</button>` : ''}
+          ${isLeader || isNominee ? `<button class="vote-del" onclick="cancelLeaderVote('${lv.id}')" title="Cancel">×</button>` : ''}
         </div>
         <div class="vote-tally">
           <span>${yesVotes} ✓</span> &nbsp;·&nbsp; <span style="color:#ff7777">${noVotes} ✗</span>
-          &nbsp;·&nbsp; ${needed} of ${players.length} needed
+          &nbsp;·&nbsp; ${needed} of ${Math.max(1, players.length - 1)} needed
         </div>
         ${isNominee
           ? `<div class="vote-voted-msg">Waiting for the group to vote on your nomination</div>`
@@ -726,14 +824,23 @@ function renderBoard() {
       </div>`
     }).join('')
   }
+  // Ask this device which player it is, so names on submissions/nominations are real
+  const whoHtml = (players.length && !myPlayer()) ? `<div class="vote-card">
+      <div class="vote-name" style="margin-bottom:4px">👋 Which one are you?</div>
+      <div style="font-size:11px;color:#F5E6C877;margin-bottom:10px">So the lads can see who submitted and who's nominated.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${players.map(p=>`<button class="split-btn" onclick="setMe('${p.id}')">${esc(p.name)}</button>`).join('')}</div>
+      <div style="font-size:10px;color:#F5E6C844;margin-top:10px;letter-spacing:1px">Not listed? Add yourself under Players.</div>
+    </div>` : ''
+
+  let pendingHtml = ''
   if (pendingSplits.length) {
     pendingHtml = `<div class="vote-section-title">🗳 Awaiting votes (${pendingSplits.length})</div>` +
     pendingSplits.map((ps, idx) => {
       const votes      = ps.votes || {}
-      const yesVotes   = Object.values(votes).filter(v=>v==='yes').length
-      const noVotes    = Object.values(votes).filter(v=>v==='no').length
-      const voters     = players.length - 1
-      const needed     = Math.max(1, Math.floor(voters / 2) + 1)
+      const yesVotes   = countVotes(votes,'yes')
+      const noVotes    = countVotes(votes,'no')
+      const voters     = Math.max(1, players.length - 1)
+      const needed     = votesNeeded()
       const myVote     = votes[deviceId]
       const hasVoted   = !!myVote
       const isSubmitter = ps.submittedBy === deviceId
@@ -767,8 +874,8 @@ function renderBoard() {
     }).join('')
   }
 
-  if (!board.length && !pendingSplits.length) {
-    el.innerHTML=`<div class="empty"><img src="/img-empty.png" style="width:160px;height:auto;opacity:0.7" alt=""/><p>No players yet</p><small>Add your mates under Players</small></div>`
+  if (!board.length && !pendingSplits.length && !leaderVotes.length) {
+    el.innerHTML=`<div class="empty"><img src="img-empty.png" style="width:160px;height:auto;opacity:0.7" alt=""/><p>No players yet</p><small>Add your mates under Players</small></div>`
     return
   }
 
@@ -782,15 +889,15 @@ function renderBoard() {
   const boardHtml = board.length ? board.map((p)=>`
     <div class="player-row">
       <span class="rank ${p.rank===1&&p.count>0?'top':''}">${p.rank===1&&p.count>0?'👑':'#'+p.rank}</span>
-      <div class="avatar">${p.avatar}</div>
-      <div class="player-name">${esc(p.name)}</div>
+      <div class="avatar">${esc(p.avatar||'')}</div>
+      <div class="player-name">${esc(p.name)}${p.id===myPlayerId()?' <span style="font-size:10px;color:#C9A84C88;letter-spacing:1px">(YOU)</span>':''}</div>
       <div class="count">${p.count}</div>
       <button class="split-btn" onclick="openSplit('${p.id}')">Split</button>
     </div>`).join('') +
     (splits.length ? `<div style="text-align:center;margin-top:20px;color:#F5E6C82a;font-size:10px;letter-spacing:2px">${splits.length} TOTAL SPLIT${splits.length!==1?'S':''}</div>` : '')
     : ''
 
-  el.innerHTML = leaderVoteHtml + pendingHtml + boardHtml
+  el.innerHTML = whoHtml + leaderVoteHtml + pendingHtml + boardHtml
 }
 
 // ── Log ────────────────────────────────────────────────────
@@ -807,7 +914,7 @@ function renderLog() {
     const isRejected = s._type === 'rejected'
     const thumb = s.photo
       ? `<img class="log-thumb" src="${s.photo}" alt="proof" onclick="viewPhoto('${s.id}','${s._type}')" style="cursor:pointer;${isRejected?'opacity:0.5;filter:grayscale(60%)':''}" />`
-      : `<div class="log-no-img"><img src="/img-empty.png" style="width:36px;height:auto;opacity:0.5" alt=""/></div>`
+      : `<div class="log-no-img"><img src="img-empty.png" style="width:36px;height:auto;opacity:0.5" alt=""/></div>`
     const time = s.timestamp?.seconds
       ? new Date(s.timestamp.seconds*1000).toLocaleString(undefined,{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
       : 'Just now'
@@ -821,7 +928,7 @@ function renderLog() {
         <div class="log-time">${time}</div>
         ${badge}
       </div>
-      ${isLeader && !isRejected ? `<button class="log-del" onclick="deleteSplit('${s.id}','${esc(s.playerName)}')" title="Remove split">×</button>` : ''}
+      ${isLeader && !isRejected ? `<button class="log-del" onclick="deleteSplit('${s.id}')" title="Remove split">×</button>` : ''}
       ${isLeader && isRejected  ? `<button class="log-del" onclick="deleteRejected('${s.id}')" title="Remove">×</button>` : ''}
     </div>`
   }).join('')
@@ -839,27 +946,44 @@ function renderPlayers() {
     <div style="border-top:1px solid #C9A84C1a;padding-top:16px">
       ${!players.length
         ? `<div style="color:#F5E6C82a;font-size:11px;letter-spacing:2px;text-align:center">No players yet</div>`
-        : players.map(p=>`<div class="player-list-row">
-            <div class="avatar">${p.avatar}</div>
+        : players.map(p=>{
+            const isMe = p.id === myPlayerId()
+            const meBtn = isMe
+              ? `<span style="font-size:9px;color:#C9A84C;letter-spacing:1px;border:1px solid #C9A84C44;border-radius:20px;padding:2px 8px">YOU</span>`
+              : !myPlayer() ? `<button class="split-btn" style="padding:5px 9px;font-size:9px" onclick="setMe('${p.id}')">That's me</button>` : ''
+            return `<div class="player-list-row">
+            <div class="avatar">${esc(p.avatar||'')}</div>
             <div style="flex:1;color:#F5E6C8">${esc(p.name)}</div>
-            ${isLeader ? `<button class="remove-btn" onclick="removePlayer('${p.id}','${esc(p.name)}')">×</button>` : ''}
-          </div>`).join('')}
+            ${meBtn}
+            ${isLeader ? `<button class="remove-btn" onclick="removePlayer('${p.id}')">×</button>` : ''}
+          </div>`}).join('')}
+      ${myPlayer() ? `<div style="text-align:center;margin-top:12px"><button onclick="setMe(null)" style="background:none;border:none;color:#F5E6C844;font-size:10px;letter-spacing:1px;cursor:pointer;font-family:Georgia,serif">Not ${esc(myPlayer().name)}? Change who you are</button></div>` : ''}
     </div>
     <div class="info-box">
       <strong>Group Code — share with mates${leaderBadge}</strong>
       <div style="font-size:22px;color:#C9A84C;letter-spacing:5px;margin:6px 0 4px">${esc(groupCode)}</div>
-      They open the app, tap <em style="color:#C9A84C88">Join Group</em> and enter this code.
+      They open the app, tap <em style="color:#C9A84C88">Join Group</em> and enter this code — or just send them the invite link.
+      <button class="btn-primary" onclick="shareGroup()">🔗 Share Invite Link</button>
+      <div style="margin-top:10px;font-size:11px">Leader: <span style="color:#C9A84C">${leaderDeviceId ? esc(isLeader ? 'You' : (leaderName || 'Someone')) : 'None yet — claim it in ⚙ Settings'}</span></div>
     </div>`
 }
 
 async function addPlayer() {
   const input = document.getElementById('new-name'), name = input?.value?.trim()
   if (!name) return
-  try { await addDoc(collection(db,'groups',groupCode,'players'),{name,avatar:name[0].toUpperCase(),createdAt:serverTimestamp()}); input.value='' }
-  catch(e) { showToast(e.message) }
+  if (players.some(p => p.name.toLowerCase() === name.toLowerCase())) { showToast(`${name} is already in the group`); return }
+  const first = !players.length
+  input.value = ''
+  try {
+    const ref = doc(collection(db,'groups',groupCode,'players'))
+    if (first && !myPlayerId()) setMe(ref.id) // whoever adds the first player is almost always that player
+    await setDoc(ref, {name,avatar:name[0].toUpperCase(),createdAt:serverTimestamp()})
+  }
+  catch(e) { input.value = name; showToast(e.message) }
 }
-async function removePlayer(id, name) {
+async function removePlayer(id) {
   if (!isLeader) return
+  const name = players.find(p => p.id === id)?.name || 'this player'
   if (!confirm(`Remove ${name} from the group?\n\nThis will not delete their splits from the log.`)) return
   try { await deleteDoc(doc(db,'groups',groupCode,'players',id)) } catch(e) { showToast(e.message) }
 }
@@ -914,60 +1038,48 @@ async function confirmSplit() {
       timestamp:     serverTimestamp(),
       photo:         photoB64,
       submittedBy:   deviceId,
-      submitterName: player.name, // store name so others can see who submitted
+      submitterName: myName(),
       votes:         {}
     })
     closeModal()
-    showToast('Split submitted — waiting for the lads to vote 🗳')
+    notify('Split submitted — waiting for the lads to vote 🗳')
   } catch(e) { showToast(e.message) }
 }
 
 async function castVote(pendingId, vote) {
+  const ref = doc(db,'groups',groupCode,'pending',pendingId)
+  const needed = votesNeeded()
   try {
-    const ref = doc(db,'groups',groupCode,'pending',pendingId)
-    const snap = await getDoc(ref)
-    if (!snap.exists()) return
-    const data = snap.data()
-
-    // Block submitter from voting on their own split
-    if (data.submittedBy === deviceId) {
-      showToast("You can't vote on your own split 🙄")
-      return
-    }
-
-    // Add this device's vote
-    await updateDoc(ref, { [`votes.${deviceId}`]: vote })
-
-    // Re-fetch to get fresh vote counts
-    const snap2  = await getDoc(ref)
-    if (!snap2.exists()) return
-    const data2  = snap2.data()
-    const votes  = data2.votes || {}
-    const voters = players.length - 1  // everyone except submitter
-    const needed = Math.max(1, Math.floor(voters / 2) + 1)
-    const yesCount = Object.values(votes).filter(v=>v==='yes').length
-    const noCount  = Object.values(votes).filter(v=>v==='no').length
-
-    if (yesCount >= needed) {
-      await addDoc(collection(db,'groups',groupCode,'splits'),{
-        playerId:   data2.playerId,
-        playerName: data2.playerName,
-        timestamp:  serverTimestamp(),
-        photo:      data2.photo || null,
-      })
-      await deleteDoc(ref)
-      const el=document.getElementById('celebrate'); el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2600)
-    } else if (noCount >= needed) {
-      await addDoc(collection(db,'groups',groupCode,'rejected'),{
-        playerId:   data2.playerId,
-        playerName: data2.playerName,
-        timestamp:  serverTimestamp(),
-        photo:      data2.photo || null,
-        rejectedBy: 'vote'
-      })
-      await deleteDoc(ref)
-      showToast('Split rejected by the lads ✗')
-    }
+    // Transaction so two people voting at the same moment can't double-count the split
+    const outcome = await runTransaction(db, async tx => {
+      const snap = await tx.get(ref)
+      if (!snap.exists()) return 'gone'
+      const d = snap.data()
+      if (d.submittedBy === deviceId) return 'own'
+      const votes = { ...(d.votes || {}), [deviceId]: vote }
+      const entry = {
+        playerId:   d.playerId,
+        playerName: d.playerName,
+        timestamp:  d.timestamp || serverTimestamp(),
+        photo:      d.photo || null,
+      }
+      if (countVotes(votes,'yes') >= needed) {
+        tx.set(doc(collection(db,'groups',groupCode,'splits')), entry)
+        tx.delete(ref)
+        return 'confirmed'
+      }
+      if (countVotes(votes,'no') >= needed) {
+        tx.set(doc(collection(db,'groups',groupCode,'rejected')), { ...entry, rejectedBy: 'vote' })
+        tx.delete(ref)
+        return 'rejected'
+      }
+      tx.update(ref, { [`votes.${deviceId}`]: vote })
+      return 'voted'
+    })
+    if (outcome === 'own')      showToast("You can't vote on your own split 🙄")
+    if (outcome === 'gone')     showToast('That split was already decided')
+    if (outcome === 'confirmed') { const el=document.getElementById('celebrate'); el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2600) }
+    if (outcome === 'rejected') notify('Split rejected by the lads ✗')
   } catch(e) { showToast(e.message) }
 }
 
@@ -975,19 +1087,20 @@ async function deletePending(id) {
   if (!isLeader) return
   if (!confirm('Reject this pending split?')) return
   try {
-    const ref  = doc(db,'groups',groupCode,'pending',id)
-    const snap = await getDoc(ref)
-    if (snap.exists()) {
+    const ref = doc(db,'groups',groupCode,'pending',id)
+    await runTransaction(db, async tx => {
+      const snap = await tx.get(ref)
+      if (!snap.exists()) return
       const d = snap.data()
-      await addDoc(collection(db,'groups',groupCode,'rejected'),{
+      tx.set(doc(collection(db,'groups',groupCode,'rejected')), {
         playerId:   d.playerId,
         playerName: d.playerName,
-        timestamp:  serverTimestamp(),
+        timestamp:  d.timestamp || serverTimestamp(),
         photo:      d.photo || null,
         rejectedBy: 'leader'
       })
-    }
-    await deleteDoc(ref)
+      tx.delete(ref)
+    })
   } catch(e) { showToast(e.message) }
 }
 
@@ -1002,8 +1115,9 @@ window.viewPendingPhoto = function(id) {
   overlay.appendChild(img); document.body.appendChild(overlay)
 }
 
-async function deleteSplit(id, playerName) {
+async function deleteSplit(id) {
   if (!isLeader) return
+  const playerName = splits.find(x => x.id === id)?.playerName || 'this player'
   if (!confirm(`Remove this split for ${playerName}?\n\nThis will deduct 1 point from their score.`)) return
   try { await deleteDoc(doc(db,'groups',groupCode,'splits',id)) }
   catch(e) { showToast(e.message) }
@@ -1029,8 +1143,26 @@ async function deleteRejected(id) {
 }
 
 // ── Helpers ────────────────────────────────────────────────
-function showToast(msg) {
-  const el=document.getElementById('toast'); el.textContent='⚠ '+msg+' — tap to dismiss'; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),4000)
+let toastTimer = null
+function showToast(msg, info) {
+  const el=document.getElementById('toast')
+  el.textContent = info ? msg : '⚠ '+msg+' — tap to dismiss'
+  el.classList.toggle('info', !!info)
+  el.classList.add('show')
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=>el.classList.remove('show'),4000)
+}
+function notify(msg) { showToast(msg, true) }
+
+async function shareGroup() {
+  const url = location.origin + location.pathname + '#' + groupCode
+  const text = `Join our Split the G group — code ${groupCode}`
+  try {
+    if (navigator.share) { await navigator.share({ title: 'Split the G', text, url }); return }
+    await navigator.clipboard.writeText(url)
+    notify('Invite link copied 🍺')
+  } catch(e) {
+    if (e.name !== 'AbortError') prompt('Copy this invite link:', url)
+  }
 }
 function esc(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
 async function compressImage(dataUrl,maxW=600) {

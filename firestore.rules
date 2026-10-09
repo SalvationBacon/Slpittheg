@@ -1,0 +1,13 @@
+rules_version = '2';
+// Paste into Firebase console → Firestore Database → Rules → Publish.
+// Test-mode rules expire after 30 days, which makes the app show "permission denied".
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /groups/{group} {
+      allow read, write: if true;
+      match /{document=**} {
+        allow read, write: if true;
+      }
+    }
+  }
+}

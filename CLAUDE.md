@@ -12,10 +12,12 @@ Mobile web app (PWA) for tracking "splitting the G" — a Guinness game where th
 - `index.html` — the whole app
 - `apple-touch-icon.png`, `apple-touch-icon-precomposed.png` (180px), `icon.png` (1024px) — home screen icons
 - `img-header.png`, `img-splash.png`, `img-empty.png`, `img-celebrate.png` — UI art
-- Image paths in `index.html` are root-relative (`/img-...`). If hosting on a GitHub Pages project URL (`user.github.io/repo/`), change them to relative (`img-...`) or they will 404.
+- `firestore.rules` — security rules to paste into the Firebase console (not deployed automatically)
+- Image paths in `index.html` are relative (`img-...`) so the app works on both Netlify and a GitHub Pages project URL.
 
 ## Firestore structure
 ```
+groups/{groupCode}              { name, createdAt, leaderDeviceId, leaderName }   shared leader (older groups lack this doc until their leader opens the app)
 groups/{groupCode}/players      { name, avatar, createdAt }
 groups/{groupCode}/splits       { playerId, playerName, timestamp, photo }        confirmed
 groups/{groupCode}/pending      { playerId, playerName, timestamp, photo, submittedBy, submitterName, votes:{deviceId:'yes'|'no'} }
@@ -23,33 +25,33 @@ groups/{groupCode}/rejected     { playerId, playerName, timestamp, photo, reject
 groups/{groupCode}/leadervotes  { nomineeDeviceId, nomineeName, timestamp, votes }
 ```
 Root-level `/players` is orphaned data from an early version — ignore it.
-Do NOT change this structure; live groups (e.g. `theboys156`) depend on it.
+Do NOT change this structure; live groups (e.g. `theboys156`) depend on it. Adding fields is fine.
 
 ## localStorage keys
 - `splitg-device-id` — random per-device ID used for votes
 - `splitg-groups` — groups this device has joined
 - `splitg-active` — current group
-- `splitg-leaders` — groups where this device is leader
+- `splitg-leaders` — cache of groups where this device is leader (truth is `leaderDeviceId` on the group doc; also used once to migrate old groups)
+- `splitg-me` — `{groupCode: playerId}`, which player this device is
 - `splitg-cache-{code}` — cached players/splits (no photos) for instant load
 - `splitg-install-dismissed`
 
 ## Features / rules
-- Create group → code = slugified name + 3 random digits; creator becomes leader (stored locally only).
-- Join group by code. Active group code is also kept in the URL hash so iOS "Add to Home Screen" remembers it.
-- Settings drawer: switch/add/remove groups, nominate self as leader.
-- Logging a split requires a photo. It goes to `pending`; the submitter cannot vote. Majority of the other players (`floor((players-1)/2)+1`) confirms → moved to `splits`; majority no → `rejected`.
+- Create group → code = slugified name + 3 random digits (checked for collisions); creator becomes leader via the group doc.
+- Join group by code — refused if no group doc and no players exist. Active group code is also kept in the URL hash so iOS "Add to Home Screen" remembers it, and `#code` links work as invite links (Share Invite Link button on Players tab).
+- Each device picks "which player are you?" once per group (board card / Players tab). Used for `submitterName`, `nomineeName`, `leaderName`.
+- Settings drawer: switch/add/remove groups, nominate self as leader (or claim it directly if the group has no leader).
+- All vote resolution (splits and leader) runs in Firestore transactions so simultaneous votes can't double-count.
+- Logging a split requires a photo. It goes to `pending`; the submitter cannot vote. Majority of the other players (`votesNeeded()` = `floor((players-1)/2)+1`) confirms → moved to `splits`; majority no → `rejected`.
 - Log shows confirmed and rejected entries (rejected greyed out, struck through).
 - Only the leader sees delete buttons. Every delete has a confirm dialog.
 - Shared rankings: ties share a place, next rank skips (1, 1, 3).
 - Listener renders are debounced (`scheduleRender`) to stop duplicate cards.
 
 ## Known issues / TODO
-1. **Create/Join buttons reported unresponsive.** Latest change wires them with `addEventListener` at the end of the script. Unverified — may have been a stale Netlify deploy (credit limit hit) rather than a code bug. Test this first.
-2. **Leader vote bug:** in `castLeaderVote`, when the majority is reached it grants leadership to the *voter's* device (`deviceId`, `isLeader = true`) instead of the nominee (`data2.nomineeDeviceId`). The Firestore write also uses a broken `updateDoc` → `addDoc` fallback. Store leadership at a fixed location (e.g. field `leaderDeviceId` on `groups/{code}` via `setDoc` with merge) and derive `isLeader` from it on every device.
-3. `nomineeName` is a placeholder `'(you)'` — devices aren't linked to player names. Consider a one-time "which player are you?" prompt per group; that also fixes #4.
-4. `submitterName` is set to the split's player name, not the person who actually submitted.
-5. Firestore test-mode rules expire 30 days after database creation. Rules should allow read/write on `groups/{group}/{document=**}`.
-6. Photos as base64 in Firestore cost reads/egress on every app open. Fine for one group; revisit if usage grows.
+1. Firestore test-mode rules expired (Oct 2026) — every read/write returns permission-denied, which breaks everything. Fix: paste `firestore.rules` into Firebase console → Firestore → Rules → Publish. The rules are open (anyone with a code can read/write); acceptable for mates, revisit if needed.
+2. Photos as base64 in Firestore cost reads/egress on every app open. Fine for one group; revisit if usage grows.
+3. Devices are identified by a random localStorage ID — clearing browser data / switching phones loses leadership and vote identity. Another member can win a leader vote to recover.
 
 ## Working conventions
 - Keep it a single static `index.html` that can be deployed by uploading files — the owner deploys from his phone.
