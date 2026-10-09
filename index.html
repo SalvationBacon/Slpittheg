@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="theme-color" content="#0A0A0A"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black"/>
+  <meta name="apple-mobile-web-app-title" content="Split the G"/>
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"/>
+  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="/apple-touch-icon-precomposed.png"/>
+  <link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Split%20the%20G%22%2C%22short_name%22%3A%22Split%20the%20G%22%2C%22start_url%22%3A%22%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230A0A0A%22%2C%22theme_color%22%3A%22%230A0A0A%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22%2Ficon.png%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fpng%22%7D%5D%7D"/>
+  <title>Split the G</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; background: #0A0A0A; font-family: Georgia, 'Times New Roman', serif; }
+    #app { min-height: 100vh; max-width: 480px; margin: 0 auto; background: #0A0A0A; color: #F5E6C8; position: relative; }
+
+    /* ── Group / onboarding screen ── */
+    .group-screen { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; padding: 48px 28px 40px; text-align: center; background: linear-gradient(180deg,#1A0F00 0%,#0A0A0A 60%); overflow-y: auto; }
+    .group-title  { font-size: 28px; letter-spacing: 4px; text-transform: uppercase; color: #F5E6C8; font-weight: normal; margin-bottom: 6px; }
+    .group-sub    { font-size: 11px; letter-spacing: 3px; color: #C9A84C; text-transform: uppercase; margin-bottom: 32px; }
+    .group-glass  { margin-bottom: 22px; }
+    .group-label  { font-size: 10px; letter-spacing: 2px; color: #C9A84C; text-transform: uppercase; margin-bottom: 8px; text-align: left; width: 100%; max-width: 320px; }
+    .group-input  { width: 100%; max-width: 320px; background: #0d0800; border: 1px solid #C9A84C66; border-radius: 6px; padding: 14px 16px; color: #F5E6C8; font-size: 20px; font-family: Georgia, serif; outline: none; text-align: center; letter-spacing: 3px; }
+    .group-input::placeholder { color: #C9A84C44; letter-spacing: 2px; font-size: 15px; }
+    .group-input:focus { border-color: #C9A84C; }
+    .group-btn  { width: 100%; max-width: 320px; background: linear-gradient(135deg,#2d1a00,#3d2500); border: 1px solid #C9A84C; color: #C9A84C; padding: 14px; border-radius: 6px; cursor: pointer; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; font-family: Georgia, serif; margin-top: 12px; }
+    .group-hint { font-size: 12px; color: #F5E6C844; margin-top: 18px; line-height: 1.9; max-width: 280px; }
+    .group-hint span { color: #C9A84C88; }
+    .mode-toggle { display: flex; border: 1px solid #C9A84C44; border-radius: 6px; overflow: hidden; width: 100%; max-width: 320px; }
+    .mode-btn    { flex: 1; padding: 11px; background: transparent; border: none; color: #F5E6C855; font-family: Georgia, serif; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: all .2s; }
+    .mode-btn.active { background: #C9A84C22; color: #C9A84C; }
+
+    /* ── Header ── */
+    .header { padding: 14px 16px 11px; background: linear-gradient(180deg,#1A0F00 0%,#0A0A0A 100%); border-bottom: 1px solid #C9A84C33; display: flex; align-items: center; gap: 11px; }
+    .header-text h1 { font-size: 20px; letter-spacing: 3px; text-transform: uppercase; color: #F5E6C8; font-weight: normal; }
+    .header-text p  { font-size: 9px; letter-spacing: 3px; color: #C9A84C; text-transform: uppercase; margin-top: 1px; }
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .group-badge  { background: #C9A84C18; border: 1px solid #C9A84C44; border-radius: 20px; padding: 4px 10px; font-size: 10px; color: #C9A84C; letter-spacing: 1px; cursor: pointer; }
+    .settings-btn { background: none; border: none; color: #C9A84C66; cursor: pointer; font-size: 20px; padding: 2px 4px; line-height: 1; }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; border-bottom: 1px solid #C9A84C33; background: #1A0F00; }
+    .tab  { flex: 1; padding: 11px 4px; text-align: center; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; color: #F5E6C855; background: none; border: none; border-bottom: 2px solid transparent; font-family: Georgia, serif; transition: color .15s; }
+    .tab.active { color: #C9A84C; border-bottom: 2px solid #C9A84C; }
+
+    .body { padding: 16px 16px 90px; }
+
+    /* ── Board ── */
+    .player-row  { display: flex; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid #C9A84C18; }
+    .rank        { font-size: 12px; color: #F5E6C833; min-width: 22px; text-align: center; }
+    .rank.top    { color: #C9A84C; }
+    .avatar      { width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0; background: linear-gradient(135deg,#1A0F00,#2a1500); border: 1px solid #C9A84C66; display: flex; align-items: center; justify-content: center; font-size: 17px; color: #C9A84C; }
+    .player-name { flex: 1; font-size: 17px; }
+    .count       { font-size: 30px; color: #C9A84C; min-width: 36px; text-align: right; }
+    .split-btn   { background: linear-gradient(135deg,#1a0f00,#2d1a00); border: 1px solid #C9A84C; color: #C9A84C; padding: 7px 11px; border-radius: 4px; cursor: pointer; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; font-family: Georgia, serif; flex-shrink: 0; }
+
+    /* ── Log ── */
+    .log-entry  { display: flex; gap: 11px; padding: 13px 0; border-bottom: 1px solid #C9A84C15; align-items: flex-start; }
+    .log-thumb  { width: 50px; height: 50px; border-radius: 5px; object-fit: cover; border: 1px solid #C9A84C44; flex-shrink: 0; }
+    .log-no-img { width: 50px; height: 50px; border-radius: 5px; background: #111; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .log-name   { font-size: 15px; color: #F5E6C8; }
+    .log-time   { font-size: 11px; color: #F5E6C855; margin-top: 2px; }
+    .log-del    { background: none; border: none; color: #ff444444; cursor: pointer; font-size: 18px; padding: 4px 6px; flex-shrink: 0; align-self: center; line-height: 1; }
+    .log-del:active { color: #ff4444; }
+    .badge      { font-size: 9px; padding: 2px 7px; border-radius: 20px; display: inline-block; margin-top: 4px; letter-spacing: 1px; }
+    .badge.verified { background: #C9A84C22; color: #C9A84C; }
+    .badge.manual   { background: #ffffff0d; color: #F5E6C844; }
+
+    /* ── Players tab ── */
+    .section-label   { font-size: 10px; letter-spacing: 2px; color: #C9A84C; margin-bottom: 7px; text-transform: uppercase; }
+    .input           { width: 100%; background: #0d0800; border: 1px solid #C9A84C44; border-radius: 4px; padding: 11px 13px; color: #F5E6C8; font-size: 16px; font-family: Georgia, serif; outline: none; }
+    .input::placeholder { color: #C9A84C55; }
+    .player-list-row { display: flex; align-items: center; gap: 11px; padding: 11px 0; border-bottom: 1px solid #C9A84C12; }
+    .remove-btn      { background: none; border: none; color: #C9A84C44; cursor: pointer; font-size: 20px; padding: 4px; }
+    .info-box        { margin-top: 24px; padding: 14px; background: #0d0800; border-radius: 6px; border: 1px solid #C9A84C1a; font-size: 12px; color: #F5E6C877; line-height: 1.75; }
+    .info-box strong { color: #C9A84C; font-size: 10px; letter-spacing: 2px; display: block; margin-bottom: 6px; font-weight: normal; }
+
+    /* ── Buttons ── */
+    .btn-primary  { width: 100%; background: linear-gradient(135deg,#2d1a00,#3d2500); border: 1px solid #C9A84C; color: #C9A84C; padding: 12px; border-radius: 4px; cursor: pointer; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; font-family: Georgia, serif; margin-top: 9px; display: block; }
+    .btn-ghost    { width: 100%; background: transparent; border: 1px solid #F5E6C82a; color: #F5E6C877; padding: 10px; border-radius: 4px; cursor: pointer; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; font-family: Georgia, serif; margin-top: 7px; display: block; }
+    .btn-override { width: 100%; background: #111; border: 1px solid #F5E6C833; color: #F5E6C888; padding: 12px; border-radius: 4px; cursor: pointer; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; font-family: Georgia, serif; margin-top: 9px; display: block; }
+    .btn-danger   { width: 100%; background: transparent; border: 1px solid #ff444422; color: #ff444477; padding: 10px; border-radius: 4px; cursor: pointer; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; font-family: Georgia, serif; margin-top: 8px; display: block; }
+
+    /* ── Voting ── */
+    .vote-card    { background: #1a0f00; border: 1px solid #C9A84C55; border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+    .vote-header  { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .vote-name    { flex: 1; font-size: 15px; color: #F5E6C8; }
+    .vote-label   { font-size: 9px; letter-spacing: 2px; color: #C9A84C; text-transform: uppercase; background: #C9A84C18; border: 1px solid #C9A84C33; border-radius: 20px; padding: 2px 8px; }
+    .vote-photo   { width: 100%; border-radius: 6px; max-height: 180px; object-fit: cover; margin-bottom: 10px; cursor: pointer; border: 1px solid #C9A84C22; display: block; }
+    .vote-tally   { font-size: 11px; color: #F5E6C855; margin-bottom: 10px; letter-spacing: 1px; }
+    .vote-tally span { color: #C9A84C; }
+    .vote-btns    { display: flex; gap: 8px; }
+    .vote-yes     { flex: 1; background: #C9A84C22; border: 1px solid #C9A84C; color: #C9A84C; padding: 10px; border-radius: 4px; cursor: pointer; font-size: 13px; font-family: Georgia, serif; }
+    .vote-no      { flex: 1; background: #ff000012; border: 1px solid #ff444444; color: #ff7777; padding: 10px; border-radius: 4px; cursor: pointer; font-size: 13px; font-family: Georgia, serif; }
+    .vote-yes.voted { opacity: .5; cursor: default; }
+    .vote-no.voted  { opacity: .5; cursor: default; }
+    .vote-voted-msg { text-align: center; font-size: 11px; color: #F5E6C844; letter-spacing: 1px; padding: 6px 0; }
+    .vote-section-title { font-size: 10px; letter-spacing: 3px; color: #C9A84C88; text-transform: uppercase; margin: 0 0 12px; }
+    .vote-del     { background: none; border: none; color: #ff444433; cursor: pointer; font-size: 18px; padding: 0 2px; line-height: 1; }
+
+    /* ── Split modal ── */
+    .modal      { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.92); align-items: center; justify-content: center; padding: 16px; }
+    .modal.open { display: flex; }
+    .modal-box  { background: #1A0F00; border: 1px solid #C9A84C55; border-radius: 8px; padding: 20px; width: 100%; max-width: 400px; max-height: 88vh; overflow-y: auto; }
+    .modal-title{ font-size: 11px; letter-spacing: 3px; color: #C9A84C; text-transform: uppercase; margin-bottom: 3px; }
+    .modal-name { color: #F5E6C8; font-size: 21px; margin-bottom: 16px; }
+    .photo-preview { width: 100%; border-radius: 6px; border: 1px solid #C9A84C44; max-height: 210px; object-fit: cover; display: block; margin-bottom: 4px; }
+    .verdict      { border-radius: 6px; padding: 13px; margin-top: 9px; }
+    .verdict.pass { background: #C9A84C18; border: 1px solid #C9A84C44; }
+    .verdict.fail { background: #ff000012; border: 1px solid #ff444444; }
+    .verdict-title  { font-size: 15px; margin-bottom: 4px; }
+    .verdict.pass .verdict-title { color: #C9A84C; }
+    .verdict.fail .verdict-title { color: #ff7777; }
+    .verdict-reason { font-size: 12px; color: #F5E6C888; }
+
+    /* ── Settings panel (slides in from right) ── */
+    .settings-panel { position: fixed; inset: 0; z-index: 110; display: none; justify-content: flex-end; }
+    .settings-panel.open { display: flex; }
+    .settings-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); }
+    .settings-drawer { position: relative; width: 85%; max-width: 340px; height: 100%; background: #100800; border-left: 1px solid #C9A84C33; padding: 0; transform: translateX(100%); transition: transform .28s cubic-bezier(.4,0,.2,1); overflow-y: auto; }
+    .settings-panel.open .settings-drawer { transform: translateX(0); }
+    .settings-head { padding: 20px 18px 14px; border-bottom: 1px solid #C9A84C22; display: flex; align-items: center; justify-content: space-between; }
+    .settings-head h2 { font-size: 14px; letter-spacing: 3px; text-transform: uppercase; color: #C9A84C; font-weight: normal; }
+    .settings-close { background: none; border: none; color: #F5E6C844; font-size: 22px; cursor: pointer; padding: 2px 4px; }
+    .settings-body { padding: 18px; }
+    .settings-section { margin-bottom: 24px; }
+    .settings-section-label { font-size: 9px; letter-spacing: 3px; color: #C9A84C88; text-transform: uppercase; margin-bottom: 12px; }
+    .group-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-radius: 6px; border: 1px solid #C9A84C1a; margin-bottom: 7px; cursor: pointer; transition: border-color .15s; }
+    .group-row:hover { border-color: #C9A84C44; }
+    .group-row.active { border-color: #C9A84C66; background: #C9A84C0d; }
+    .group-row-code { flex: 1; font-size: 14px; color: #F5E6C8; letter-spacing: 2px; }
+    .group-row-tick { color: #C9A84C; font-size: 14px; }
+    .group-row-del  { background: none; border: none; color: #ff444444; cursor: pointer; font-size: 17px; padding: 2px 4px; }
+    .settings-divider { height: 1px; background: #C9A84C18; margin: 20px 0; }
+    .settings-mini-toggle { display: flex; border: 1px solid #C9A84C33; border-radius: 5px; overflow: hidden; margin-bottom: 10px; }
+    .settings-mini-btn { flex: 1; padding: 9px; background: transparent; border: none; color: #F5E6C855; font-family: Georgia, serif; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
+    .settings-mini-btn.active { background: #C9A84C22; color: #C9A84C; }
+    .settings-input { width: 100%; background: #0d0800; border: 1px solid #C9A84C33; border-radius: 4px; padding: 10px 12px; color: #F5E6C8; font-size: 15px; font-family: Georgia, serif; outline: none; letter-spacing: 2px; }
+    .settings-input::placeholder { color: #C9A84C33; font-size: 13px; }
+    .settings-btn-add { width: 100%; background: linear-gradient(135deg,#2d1a00,#3d2500); border: 1px solid #C9A84C; color: #C9A84C; padding: 11px; border-radius: 4px; cursor: pointer; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; font-family: Georgia, serif; margin-top: 8px; }
+
+    /* ── Celebrate ── */
+    .celebrate       { display: none; position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.88); align-items: center; justify-content: center; flex-direction: column; }
+    .celebrate.show  { display: flex; animation: fadeIn .2s ease; }
+    .celebrate-emoji { font-size: 90px; margin-bottom: 14px; }
+    .celebrate-text  { font-size: 38px; color: #C9A84C; letter-spacing: 5px; text-transform: uppercase; text-shadow: 0 0 50px #C9A84C; }
+    .celebrate-sub   { color: #F0DEB4; margin-top: 10px; font-size: 15px; opacity: .8; }
+
+    /* ── Toast ── */
+    .toast      { display: none; position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: #3a0000; border: 1px solid #ff4444; border-radius: 6px; color: #ff9999; padding: 10px 16px; font-size: 12px; z-index: 300; max-width: 340px; text-align: center; cursor: pointer; font-family: Georgia, serif; }
+    .toast.show { display: block; }
+
+    /* ── Empty ── */
+    .empty       { text-align: center; color: #F5E6C844; margin-top: 48px; }
+    .empty p     { font-size: 13px; letter-spacing: 2px; margin-top: 12px; }
+    .empty small { font-size: 11px; color: #F5E6C833; margin-top: 6px; display: block; }
+
+    /* ── Spinner ── */
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #C9A84C44; border-top-color: #C9A84C; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px; }
+    /* ── Install banner ── */
+    .install-banner      { display: none; position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: #1A0F00; border-top: 1px solid #C9A84C55; padding: 16px 18px 28px; z-index: 150; animation: slideUp .3s ease; }
+    .install-banner.show { display: block; }
+    .install-header      { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .install-title-bar   { font-size: 13px; letter-spacing: 2px; color: #C9A84C; text-transform: uppercase; }
+    .install-close       { background: none; border: none; color: #F5E6C844; font-size: 20px; cursor: pointer; padding: 2px 6px; }
+    .install-steps       { font-size: 13px; color: #F5E6C8CC; line-height: 1.9; }
+    .install-steps span  { color: #C9A84C; }
+
+    @keyframes spin    { to { transform: rotate(360deg); } }
+    @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
+    @keyframes slideUp { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-thumb { background: #C9A84C33; border-radius: 2px; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══ Group onboarding screen ══ -->
+  <div id="group-screen" class="group-screen">
+    <div class="group-glass">
+      <img src="/img-splash.png" style="width:120px;height:auto" alt=""/>
+    </div>
+    <div class="group-title">Split the G</div>
+    <div class="group-sub">Guinness Split Tracker</div>
+
+    <!-- Create -->
+    <div style="width:100%;max-width:320px;margin-bottom:28px">
+      <div class="group-label">Create a new group</div>
+      <input class="group-input" id="create-input" type="text" placeholder="e.g. The Lads"
+        maxlength="20" autocomplete="off" autocorrect="off" spellcheck="false"/>
+      <button class="group-btn" id="btn-create">Create Group →</button>
+      <div class="group-hint" style="margin-top:10px">A unique code is generated — share it with your mates.</div>
+    </div>
+
+    <!-- Divider -->
+    <div style="width:100%;max-width:320px;display:flex;align-items:center;gap:12px;margin-bottom:28px">
+      <div style="flex:1;height:1px;background:#C9A84C22"></div>
+      <div style="font-size:10px;color:#C9A84C44;letter-spacing:2px">OR</div>
+      <div style="flex:1;height:1px;background:#C9A84C22"></div>
+    </div>
+
+    <!-- Join -->
+    <div style="width:100%;max-width:320px">
+      <div class="group-label">Join an existing group</div>
+      <input class="group-input" id="join-input" type="text" placeholder="e.g. lads847"
+        maxlength="20" autocomplete="off" autocorrect="off" spellcheck="false"/>
+      <button class="group-btn" id="btn-join">Join Group →</button>
+      <div class="group-hint" style="margin-top:10px">Get the code from whoever created the group.</div>
+    </div>
+  </div>
+
+  <!-- ══ Main app ══ -->
+  <div id="main-app" style="display:none">
+
+    <div class="header">
+      <img src="/img-header.png" style="width:36px;height:36px;border-radius:6px" alt=""/>
+      <div class="header-text">
+        <h1>Split the G</h1>
+        <p>Guinness Split Tracker</p>
+      </div>
+      <div class="header-right">
+        <div class="group-badge" id="group-badge"></div>
+        <button class="settings-btn" onclick="openSettings()" title="Settings">⚙</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="setView('board')">Board</button>
+      <button class="tab"        onclick="setView('log')">Log</button>
+      <button class="tab"        onclick="setView('players')">Players</button>
+    </div>
+
+    <div class="body">
+      <div id="view-board"></div>
+      <div id="view-log"     style="display:none"></div>
+      <div id="view-players" style="display:none"></div>
+    </div>
+
+    <!-- Split modal -->
+    <div class="modal" id="modal">
+      <div class="modal-box">
+        <div class="modal-title">Log a Split</div>
+        <div class="modal-name" id="modal-player-name"></div>
+        <input type="file" accept="image/*" id="photo-input" style="display:none" onchange="handlePhoto(this)"/>
+        <div id="photo-area"></div>
+        <div id="action-btns"></div>
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Celebration -->
+    <div class="celebrate" id="celebrate">
+      <img src="/img-celebrate.png" style="width:180px;height:auto;margin-bottom:20px" alt=""/>
+      <div class="celebrate-text">Split!</div>
+      <div class="celebrate-sub">The G has been split 🖤</div>
+    </div>
+
+    <!-- ══ Settings panel ══ -->
+    <div class="settings-panel" id="settings-panel">
+      <div class="settings-overlay" onclick="closeSettings()"></div>
+      <div class="settings-drawer">
+        <div class="settings-head">
+          <h2>Settings</h2>
+          <button class="settings-close" onclick="closeSettings()">×</button>
+        </div>
+        <div class="settings-body">
+          <div class="settings-section">
+            <div class="settings-section-label">Your Groups</div>
+            <div id="settings-group-list"></div>
+          </div>
+          <div class="settings-divider"></div>
+          <div class="settings-section">
+            <div class="settings-section-label">Add Another Group</div>
+            <div class="settings-mini-toggle">
+              <button class="settings-mini-btn active" id="smb-create" onclick="switchSettingsMode('create')">Create</button>
+              <button class="settings-mini-btn"        id="smb-join"   onclick="switchSettingsMode('join')">Join</button>
+            </div>
+            <div id="settings-panel-create">
+              <input class="settings-input" id="settings-create-input" placeholder="Group name..." maxlength="20" autocomplete="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')settingsCreate()"/>
+              <button class="settings-btn-add" onclick="settingsCreate()">Create Group →</button>
+            </div>
+            <div id="settings-panel-join" style="display:none">
+              <input class="settings-input" id="settings-join-input" placeholder="Group code..." maxlength="20" autocomplete="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')settingsJoin()"/>
+              <button class="settings-btn-add" onclick="settingsJoin()">Join Group →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main-app -->
+
+  <!-- Toast -->
+  <div class="toast" id="toast" onclick="this.classList.remove('show')"></div>
+
+  <!-- Install banner -->
+  <div class="install-banner" id="install-banner">
+    <div class="install-header">
+      <div class="install-title-bar">📲 Add to Home Screen</div>
+      <button class="install-close" onclick="dismissInstall()">×</button>
+    </div>
+    <div class="install-steps" id="install-steps"></div>
+  </div>
+
+</div><!-- /app -->
+
+<script type="module">
+import { initializeApp }                        from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'
+import { getFirestore, collection, doc, addDoc,
+         deleteDoc, onSnapshot, query, orderBy,
+         serverTimestamp, updateDoc, getDoc }    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+
+const app = initializeApp({
+  apiKey:            "AIzaSyAEkm7dMNoeX2hHZSpeauOFTtegjAIYmnA",
+  authDomain:        "split-the-g-96d13.firebaseapp.com",
+  projectId:         "split-the-g-96d13",
+  storageBucket:     "split-the-g-96d13.firebasestorage.app",
+  messagingSenderId: "46856720459",
+  appId:             "1:46856720459:web:3eec32abb7e51755ae3dce"
+})
+const db = getFirestore(app)
+
+// ── State ──────────────────────────────────────────────────
+let groupCode = null, savedGroups = []
+let players = [], splits = [], pendingSplits = [], rejectedSplits = [], leaderVotes = [], currentView = 'board'
+let pendingPlayerId = null, photoB64 = null
+let unsubPlayers = null, unsubSplits = null, unsubPending = null, unsubRejected = null, unsubLeaderVotes = null
+let isLeader = false
+let deviceId = localStorage.getItem('splitg-device-id') || (() => {
+  const id = Math.random().toString(36).slice(2)
+  localStorage.setItem('splitg-device-id', id)
+  return id
+})()
+
+// ── Globals ────────────────────────────────────────────────
+window.createGroup        = createGroup
+window.joinGroup          = joinGroup
+window.openSettings       = openSettings
+window.closeSettings      = closeSettings
+window.switchSettingsMode = switchSettingsMode
+window.settingsCreate     = settingsCreate
+window.settingsJoin       = settingsJoin
+window.switchToGroup      = switchToGroup
+window.removeGroupFromList = removeGroupFromList
+window.setView            = setView
+window.addPlayer          = addPlayer
+window.removePlayer       = removePlayer
+window.openSplit          = openSplit
+window.closeModal         = closeModal
+window.handlePhoto        = handlePhoto
+window.clearPhoto         = clearPhoto
+window.confirmSplit       = confirmSplit
+window.deleteSplit        = deleteSplit
+window.deletePending      = deletePending
+window.deleteRejected     = deleteRejected
+window.castVote           = castVote
+window.nominateLeader     = nominateLeader
+window.castLeaderVote     = castLeaderVote
+window.cancelLeaderVote   = cancelLeaderVote
+window.viewPhoto          = viewPhoto
+window.dismissInstall     = dismissInstall
+
+// ── Saved groups (localStorage) ───────────────────────────
+function loadSavedGroups() {
+  try { savedGroups = JSON.parse(localStorage.getItem('splitg-groups') || '[]') }
+  catch { savedGroups = [] }
+}
+function persistGroups() {
+  localStorage.setItem('splitg-groups', JSON.stringify(savedGroups))
+}
+function addToSavedGroups(code) {
+  if (!savedGroups.includes(code)) { savedGroups.push(code); persistGroups() }
+}
+function removeFromSavedGroups(code) {
+  savedGroups = savedGroups.filter(g => g !== code)
+  persistGroups()
+}
+
+// ── Onboarding ─────────────────────────────────────────────
+
+function createGroup() {
+  const name = document.getElementById('create-input').value.trim()
+  if (!name) { flashInput('create-input'); return }
+  const slug   = name.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,10)
+  const suffix = Math.floor(100 + Math.random()*900)
+  const code   = (slug||'group') + suffix
+  // Mark this device as leader for this group
+  const leaders = JSON.parse(localStorage.getItem('splitg-leaders') || '[]')
+  if (!leaders.includes(code)) { leaders.push(code); localStorage.setItem('splitg-leaders', JSON.stringify(leaders)) }
+  enterGroup(code)
+}
+
+function joinGroup() {
+  const raw = document.getElementById('join-input').value.trim().toLowerCase().replace(/[^a-z0-9]/g,'')
+  if (!raw) { flashInput('join-input'); return }
+  enterGroup(raw)
+}
+
+function flashInput(id) {
+  const el = document.getElementById(id)
+  el.style.borderColor = '#ff4444'
+  setTimeout(() => el.style.borderColor = '', 800)
+}
+
+function enterGroup(code) {
+  addToSavedGroups(code)
+  localStorage.setItem('splitg-active', code)
+  activateGroup(code)
+}
+
+// ── Debounced render ───────────────────────────────────────
+let renderTimer = null
+function scheduleRender() {
+  if (renderTimer) clearTimeout(renderTimer)
+  renderTimer = setTimeout(() => { renderTimer = null; render() }, 50)
+}
+
+// ── Group activation ───────────────────────────────────────
+function activateGroup(code) {
+  if (unsubPlayers)     { unsubPlayers();     unsubPlayers     = null }
+  if (unsubSplits)      { unsubSplits();      unsubSplits      = null }
+  if (unsubPending)     { unsubPending();     unsubPending     = null }
+  if (unsubRejected)    { unsubRejected();    unsubRejected    = null }
+  if (unsubLeaderVotes) { unsubLeaderVotes(); unsubLeaderVotes = null }
+
+  players = []; splits = []; pendingSplits = []; rejectedSplits = []; leaderVotes = []
+  groupCode = code
+  localStorage.setItem('splitg-active', code)
+  const leaders = JSON.parse(localStorage.getItem('splitg-leaders') || '[]')
+  isLeader = leaders.includes(code)
+  history.replaceState(null,'','#'+code)
+
+  document.getElementById('group-screen').style.display = 'none'
+  document.getElementById('main-app').style.display     = ''
+  document.getElementById('group-badge').textContent    = '#' + code
+
+  // Show cached data instantly so the UI feels immediate
+  try {
+    const cached = JSON.parse(localStorage.getItem(`splitg-cache-${code}`) || '{}')
+    if (cached.players)  players       = cached.players
+    if (cached.splits)   splits        = cached.splits
+    if (cached.pending)  pendingSplits = cached.pending
+    if (cached.rejected) rejectedSplits= cached.rejected
+    if (players.length || splits.length) render()
+  } catch(e) {}
+
+  // Then sync live from Firestore
+  unsubPlayers = onSnapshot(collection(db,'groups',code,'players'), snap => {
+    players = snap.docs.map(d => ({id:d.id,...d.data()}))
+    saveCache(code)
+    scheduleRender()
+  }, e => showToast(e.message))
+
+  unsubSplits = onSnapshot(query(collection(db,'groups',code,'splits'), orderBy('timestamp','desc')), snap => {
+    splits = snap.docs.map(d => ({id:d.id,...d.data()}))
+    saveCache(code)
+    scheduleRender()
+  }, e => showToast(e.message))
+
+  unsubPending = onSnapshot(query(collection(db,'groups',code,'pending'), orderBy('timestamp','desc')), snap => {
+    pendingSplits = snap.docs.map(d => ({id:d.id,...d.data()}))
+    saveCache(code)
+    scheduleRender()
+  }, e => showToast(e.message))
+
+  unsubRejected = onSnapshot(query(collection(db,'groups',code,'rejected'), orderBy('timestamp','desc')), snap => {
+    rejectedSplits = snap.docs.map(d => ({id:d.id,...d.data()}))
+    saveCache(code)
+    scheduleRender()
+  }, e => showToast(e.message))
+
+  unsubLeaderVotes = onSnapshot(collection(db,'groups',code,'leadervotes'), snap => {
+    leaderVotes = snap.docs.map(d => ({id:d.id,...d.data()}))
+    scheduleRender()
+  }, e => showToast(e.message))
+
+  setView('board')
+  showInstallPrompt()
+}
+
+function saveCache(code) {
+  try {
+    // Strip photos from cache to keep it small — photos load from Firestore anyway
+    const stripPhotos = arr => arr.map(({photo, ...rest}) => rest)
+    localStorage.setItem(`splitg-cache-${code}`, JSON.stringify({
+      players,
+      splits:   stripPhotos(splits),
+      pending:  stripPhotos(pendingSplits),
+      rejected: stripPhotos(rejectedSplits)
+    }))
+  } catch(e) {}
+}
+
+// ── Auto-rejoin on load ────────────────────────────────────
+loadSavedGroups()
+// Check URL hash first (survives iOS homescreen handoff)
+const hashGroup = window.location.hash.replace('#','').trim().toLowerCase().replace(/[^a-z0-9]/g,'')
+const storedGroup = localStorage.getItem('splitg-active')
+const activeCode = hashGroup || storedGroup
+if (activeCode) {
+  if (hashGroup) {
+    // Came from browser with hash — persist it and clean URL
+    addToSavedGroups(hashGroup)
+    localStorage.setItem('splitg-active', hashGroup)
+    history.replaceState(null,'',window.location.pathname)
+  }
+  activateGroup(activeCode)
+} // else: show group screen
+
+// ── Settings panel ─────────────────────────────────────────
+function openSettings() {
+  renderSettingsGroups()
+  document.getElementById('settings-panel').classList.add('open')
+}
+function closeSettings() {
+  document.getElementById('settings-panel').classList.remove('open')
+}
+
+function renderSettingsGroups() {
+  const leaders = JSON.parse(localStorage.getItem('splitg-leaders') || '[]')
+  const el = document.getElementById('settings-group-list')
+  if (!savedGroups.length) {
+    el.innerHTML = `<div style="color:#F5E6C833;font-size:11px;letter-spacing:1px">No groups yet</div>`
+    return
+  }
+  el.innerHTML = savedGroups.map(g => {
+    const isActive   = g === groupCode
+    const amLeader   = leaders.includes(g)
+    return `
+    <div class="group-row ${isActive?'active':''}">
+      <div style="flex:1">
+        <div class="group-row-code" onclick="switchToGroup('${g}')">${g}</div>
+        ${amLeader ? `<div style="font-size:9px;color:#C9A84C88;letter-spacing:1px;margin-top:2px">LEADER</div>` : ''}
+      </div>
+      ${isActive ? `<span class="group-row-tick">✓</span>` : ''}
+      ${!amLeader && isActive ? `<button onclick="nominateLeader()" style="background:#C9A84C18;border:1px solid #C9A84C44;color:#C9A84C;font-size:9px;letter-spacing:1px;padding:3px 8px;border-radius:4px;cursor:pointer;font-family:Georgia,serif;margin-right:4px">NOMINATE ME</button>` : ''}
+      <button class="group-row-del" onclick="removeGroupFromList('${g}')" title="Remove">×</button>
+    </div>`
+  }).join('')
+}
+
+window.claimLeader = function() {} // retired — replaced by vote
+
+async function nominateLeader() {
+  // Check if there's already an active nomination
+  if (leaderVotes.length > 0) {
+    showToast('A leader vote is already in progress')
+    closeSettings()
+    return
+  }
+  if (!confirm('Nominate yourself as leader?\n\nThe group will vote. Majority yes = you become leader.')) return
+  closeSettings()
+  try {
+    await addDoc(collection(db,'groups',groupCode,'leadervotes'), {
+      nomineeDeviceId: deviceId,
+      nomineeName:     '(you)', // placeholder — updated below
+      timestamp:       serverTimestamp(),
+      votes:           {}
+    })
+    // Update with a display name from players if possible
+    showToast('Nomination submitted — the lads will vote 👑')
+  } catch(e) { showToast(e.message) }
+}
+
+async function castLeaderVote(lvId, vote) {
+  try {
+    const ref  = doc(db,'groups',groupCode,'leadervotes',lvId)
+    const snap = await getDoc(ref)
+    if (!snap.exists()) return
+    const data = snap.data()
+
+    if (data.nomineeDeviceId === deviceId) {
+      showToast("You can't vote on your own nomination 🙄")
+      return
+    }
+
+    await updateDoc(ref, { [`votes.${deviceId}`]: vote })
+
+    const snap2    = await getDoc(ref)
+    if (!snap2.exists()) return
+    const data2    = snap2.data()
+    const votes    = data2.votes || {}
+    const needed   = Math.max(1, Math.floor(players.length / 2) + 1)
+    const yesCount = Object.values(votes).filter(v=>v==='yes').length
+    const noCount  = Object.values(votes).filter(v=>v==='no').length
+
+    if (yesCount >= needed) {
+      // Grant leadership — store in Firestore so it persists group-wide
+      await updateDoc(doc(db,'groups',groupCode,'meta','leader'), {
+        deviceId, grantedAt: serverTimestamp()
+      }).catch(() =>
+        // doc may not exist yet — use setDoc via addDoc workaround
+        addDoc(collection(db,'groups',groupCode,'meta'), {
+          _id: 'leader', deviceId, grantedAt: serverTimestamp()
+        })
+      )
+      // Also save locally
+      const leaders = JSON.parse(localStorage.getItem('splitg-leaders') || '[]')
+      if (!leaders.includes(groupCode)) { leaders.push(groupCode); localStorage.setItem('splitg-leaders', JSON.stringify(leaders)) }
+      isLeader = true
+      await deleteDoc(ref)
+      render()
+      showToast('You are now the leader 👑')
+    } else if (noCount >= needed) {
+      await deleteDoc(ref)
+      showToast('Nomination rejected by the group')
+    }
+  } catch(e) { showToast(e.message) }
+}
+
+window.cancelLeaderVote = async function(lvId) {
+  if (!isLeader) return
+  if (!confirm('Cancel this leader nomination?')) return
+  try { await deleteDoc(doc(db,'groups',groupCode,'leadervotes',lvId)) }
+  catch(e) { showToast(e.message) }
+}
+}
+
+function switchToGroup(code) {
+  closeSettings()
+  activateGroup(code)
+}
+
+function removeGroupFromList(code) {
+  removeFromSavedGroups(code)
+  // If removing active group, show onboarding
+  if (code === groupCode) {
+    if (unsubPlayers) unsubPlayers()
+    if (unsubSplits)  unsubSplits()
+    players = []; splits = []; groupCode = null
+    localStorage.removeItem('splitg-active')
+    document.getElementById('main-app').style.display    = 'none'
+    document.getElementById('group-screen').style.display = ''
+    closeSettings()
+  } else {
+    renderSettingsGroups()
+  }
+}
+
+function switchSettingsMode(mode) {
+  document.getElementById('settings-panel-create').style.display = mode==='create' ? '' : 'none'
+  document.getElementById('settings-panel-join').style.display   = mode==='join'   ? '' : 'none'
+  document.getElementById('smb-create').classList.toggle('active', mode==='create')
+  document.getElementById('smb-join').classList.toggle('active',   mode==='join')
+}
+
+function settingsCreate() {
+  const name = document.getElementById('settings-create-input').value.trim()
+  if (!name) return
+  const slug   = name.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,10)
+  const suffix = Math.floor(100 + Math.random()*900)
+  const code   = (slug||'group') + suffix
+  const leaders = JSON.parse(localStorage.getItem('splitg-leaders') || '[]')
+  if (!leaders.includes(code)) { leaders.push(code); localStorage.setItem('splitg-leaders', JSON.stringify(leaders)) }
+  document.getElementById('settings-create-input').value = ''
+  closeSettings()
+  enterGroup(code)
+}
+
+function settingsJoin() {
+  const raw = document.getElementById('settings-join-input').value.trim().toLowerCase().replace(/[^a-z0-9]/g,'')
+  if (!raw) return
+  document.getElementById('settings-join-input').value = ''
+  closeSettings()
+  enterGroup(raw)
+}
+
+// ── Views ──────────────────────────────────────────────────
+function setView(v) {
+  currentView = v
+  document.querySelectorAll('.tab').forEach((t,i) =>
+    t.classList.toggle('active', ['board','log','players'][i] === v))
+  document.getElementById('view-board').style.display   = v==='board'   ? '' : 'none'
+  document.getElementById('view-log').style.display     = v==='log'     ? '' : 'none'
+  document.getElementById('view-players').style.display = v==='players' ? '' : 'none'
+  render()
+}
+
+function render() {
+  if (currentView==='board')   renderBoard()
+  if (currentView==='log')     renderLog()
+  if (currentView==='players') renderPlayers()
+}
+
+// ── Board ──────────────────────────────────────────────────
+function renderBoard() {
+  const board = [...players].map(p=>({...p,count:splits.filter(s=>s.playerId===p.id).length})).sort((a,b)=>b.count-a.count)
+  const el = document.getElementById('view-board')
+
+  // Leader vote nominations
+  let leaderVoteHtml = ''
+  if (leaderVotes.length) {
+    leaderVoteHtml = leaderVotes.map(lv => {
+      const votes    = lv.votes || {}
+      const yesVotes = Object.values(votes).filter(v=>v==='yes').length
+      const noVotes  = Object.values(votes).filter(v=>v==='no').length
+      const needed   = Math.max(1, Math.floor(players.length / 2) + 1)
+      const myVote   = votes[deviceId]
+      const isNominee = lv.nomineeDeviceId === deviceId
+      return `<div class="vote-card" style="border-color:#C9A84C88">
+        <div class="vote-header">
+          <div>
+            <div class="vote-name">👑 Leader Vote</div>
+            <div style="font-size:10px;color:#F5E6C855;margin-top:2px;letter-spacing:1px">
+              <span style="color:#C9A84C88">${esc(lv.nomineeName)}</span> wants to be leader
+            </div>
+          </div>
+          ${isLeader ? `<button class="vote-del" onclick="cancelLeaderVote('${lv.id}')" title="Cancel">×</button>` : ''}
+        </div>
+        <div class="vote-tally">
+          <span>${yesVotes} ✓</span> &nbsp;·&nbsp; <span style="color:#ff7777">${noVotes} ✗</span>
+          &nbsp;·&nbsp; ${needed} of ${players.length} needed
+        </div>
+        ${isNominee
+          ? `<div class="vote-voted-msg">Waiting for the group to vote on your nomination</div>`
+          : myVote
+            ? `<div class="vote-voted-msg">You voted <strong style="color:${myVote==='yes'?'#C9A84C':'#ff7777'}">${myVote==='yes'?'✓ Yes':'✗ No'}</strong></div>`
+            : `<div class="vote-btns">
+                <button class="vote-yes" onclick="castLeaderVote('${lv.id}','yes')">✓ Yes</button>
+                <button class="vote-no"  onclick="castLeaderVote('${lv.id}','no')">✗ No</button>
+              </div>`
+        }
+      </div>`
+    }).join('')
+  }
+  if (pendingSplits.length) {
+    pendingHtml = `<div class="vote-section-title">🗳 Awaiting votes (${pendingSplits.length})</div>` +
+    pendingSplits.map((ps, idx) => {
+      const votes      = ps.votes || {}
+      const yesVotes   = Object.values(votes).filter(v=>v==='yes').length
+      const noVotes    = Object.values(votes).filter(v=>v==='no').length
+      const voters     = players.length - 1
+      const needed     = Math.max(1, Math.floor(voters / 2) + 1)
+      const myVote     = votes[deviceId]
+      const hasVoted   = !!myVote
+      const isSubmitter = ps.submittedBy === deviceId
+      // Find submitter name from players list
+      const submittedLabel = isSubmitter ? 'You' : (ps.submitterName || 'Someone')
+
+      return `<div class="vote-card" style="border-color:${idx===0?'#C9A84C55':'#C9A84C22'}">
+        <div class="vote-header">
+          <div>
+            <div class="vote-name">${esc(ps.playerName)}'s split</div>
+            <div style="font-size:10px;color:#F5E6C855;margin-top:2px;letter-spacing:1px">Submitted by <span style="color:#C9A84C88">${esc(submittedLabel)}</span></div>
+          </div>
+          <span class="vote-label">Pending</span>
+          ${isLeader ? `<button class="vote-del" onclick="deletePending('${ps.id}')" title="Reject">×</button>` : ''}
+        </div>
+        ${ps.photo ? `<img class="vote-photo" src="${ps.photo}" alt="proof" onclick="viewPendingPhoto('${ps.id}')"/>` : ''}
+        <div class="vote-tally">
+          <span>${yesVotes} ✓</span> &nbsp;·&nbsp; <span style="color:#ff7777">${noVotes} ✗</span>
+          &nbsp;·&nbsp; ${needed} of ${voters} needed
+        </div>
+        ${hasVoted
+          ? `<div class="vote-voted-msg">You voted <strong style="color:${myVote==='yes'?'#C9A84C':'#ff7777'}">${myVote==='yes'?'✓ Split':'✗ Not a split'}</strong></div>`
+          : isSubmitter
+            ? `<div class="vote-voted-msg">You submitted this — waiting on the lads to vote</div>`
+            : `<div class="vote-btns">
+                <button class="vote-yes" onclick="castVote('${ps.id}','yes')">✓ Split</button>
+                <button class="vote-no"  onclick="castVote('${ps.id}','no')">✗ Not a split</button>
+              </div>`
+        }
+      </div>`
+    }).join('')
+  }
+
+  if (!board.length && !pendingSplits.length) {
+    el.innerHTML=`<div class="empty"><img src="/img-empty.png" style="width:160px;height:auto;opacity:0.7" alt=""/><p>No players yet</p><small>Add your mates under Players</small></div>`
+    return
+  }
+
+  // Shared ranking
+  let rank = 1
+  board.forEach((p, i) => {
+    if (i > 0 && p.count < board[i-1].count) rank = i + 1
+    p.rank = rank
+  })
+
+  const boardHtml = board.length ? board.map((p)=>`
+    <div class="player-row">
+      <span class="rank ${p.rank===1&&p.count>0?'top':''}">${p.rank===1&&p.count>0?'👑':'#'+p.rank}</span>
+      <div class="avatar">${p.avatar}</div>
+      <div class="player-name">${esc(p.name)}</div>
+      <div class="count">${p.count}</div>
+      <button class="split-btn" onclick="openSplit('${p.id}')">Split</button>
+    </div>`).join('') +
+    (splits.length ? `<div style="text-align:center;margin-top:20px;color:#F5E6C82a;font-size:10px;letter-spacing:2px">${splits.length} TOTAL SPLIT${splits.length!==1?'S':''}</div>` : '')
+    : ''
+
+  el.innerHTML = leaderVoteHtml + pendingHtml + boardHtml
+}
+
+// ── Log ────────────────────────────────────────────────────
+function renderLog() {
+  const el = document.getElementById('view-log')
+  const allEntries = [
+    ...splits.map(s => ({...s, _type:'confirmed'})),
+    ...rejectedSplits.map(s => ({...s, _type:'rejected'}))
+  ].sort((a,b) => (b.timestamp?.seconds||0) - (a.timestamp?.seconds||0))
+
+  if (!allEntries.length) { el.innerHTML=`<div class="empty"><p>No splits recorded yet</p></div>`; return }
+
+  el.innerHTML = allEntries.map(s => {
+    const isRejected = s._type === 'rejected'
+    const thumb = s.photo
+      ? `<img class="log-thumb" src="${s.photo}" alt="proof" onclick="viewPhoto('${s.id}','${s._type}')" style="cursor:pointer;${isRejected?'opacity:0.5;filter:grayscale(60%)':''}" />`
+      : `<div class="log-no-img"><img src="/img-empty.png" style="width:36px;height:auto;opacity:0.5" alt=""/></div>`
+    const time = s.timestamp?.seconds
+      ? new Date(s.timestamp.seconds*1000).toLocaleString(undefined,{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
+      : 'Just now'
+    const badge = isRejected
+      ? `<span class="badge" style="background:#ff000018;color:#ff7777;border:1px solid #ff444433">✗ REJECTED${s.rejectedBy==='leader'?' BY LEADER':''}</span>`
+      : `<span class="badge verified">✓ CONFIRMED</span>`
+    return `<div class="log-entry" style="${isRejected?'opacity:0.65':''}">
+      ${thumb}
+      <div style="flex:1">
+        <div class="log-name" style="${isRejected?'text-decoration:line-through;color:#F5E6C888':''}">${esc(s.playerName)}</div>
+        <div class="log-time">${time}</div>
+        ${badge}
+      </div>
+      ${isLeader && !isRejected ? `<button class="log-del" onclick="deleteSplit('${s.id}','${esc(s.playerName)}')" title="Remove split">×</button>` : ''}
+      ${isLeader && isRejected  ? `<button class="log-del" onclick="deleteRejected('${s.id}')" title="Remove">×</button>` : ''}
+    </div>`
+  }).join('')
+}
+
+// ── Players ────────────────────────────────────────────────
+function renderPlayers() {
+  const leaderBadge = isLeader ? `<span style="font-size:9px;background:#C9A84C22;border:1px solid #C9A84C44;color:#C9A84C;padding:2px 8px;border-radius:20px;letter-spacing:1px;margin-left:8px">LEADER</span>` : ''
+  document.getElementById('view-players').innerHTML = `
+    <div style="margin-bottom:18px">
+      <div class="section-label">Add a Mate</div>
+      <input class="input" id="new-name" placeholder="Name..." onkeydown="if(event.key==='Enter')addPlayer()" autocomplete="off"/>
+      <button class="btn-primary" onclick="addPlayer()">Add Player</button>
+    </div>
+    <div style="border-top:1px solid #C9A84C1a;padding-top:16px">
+      ${!players.length
+        ? `<div style="color:#F5E6C82a;font-size:11px;letter-spacing:2px;text-align:center">No players yet</div>`
+        : players.map(p=>`<div class="player-list-row">
+            <div class="avatar">${p.avatar}</div>
+            <div style="flex:1;color:#F5E6C8">${esc(p.name)}</div>
+            ${isLeader ? `<button class="remove-btn" onclick="removePlayer('${p.id}','${esc(p.name)}')">×</button>` : ''}
+          </div>`).join('')}
+    </div>
+    <div class="info-box">
+      <strong>Group Code — share with mates${leaderBadge}</strong>
+      <div style="font-size:22px;color:#C9A84C;letter-spacing:5px;margin:6px 0 4px">${esc(groupCode)}</div>
+      They open the app, tap <em style="color:#C9A84C88">Join Group</em> and enter this code.
+    </div>`
+}
+
+async function addPlayer() {
+  const input = document.getElementById('new-name'), name = input?.value?.trim()
+  if (!name) return
+  try { await addDoc(collection(db,'groups',groupCode,'players'),{name,avatar:name[0].toUpperCase(),createdAt:serverTimestamp()}); input.value='' }
+  catch(e) { showToast(e.message) }
+}
+async function removePlayer(id, name) {
+  if (!isLeader) return
+  if (!confirm(`Remove ${name} from the group?\n\nThis will not delete their splits from the log.`)) return
+  try { await deleteDoc(doc(db,'groups',groupCode,'players',id)) } catch(e) { showToast(e.message) }
+}
+
+// ── Split ──────────────────────────────────────────────────
+function openSplit(playerId) {
+  pendingPlayerId=playerId; photoB64=null
+  document.getElementById('modal-player-name').textContent = players.find(p=>p.id===playerId)?.name||''
+  resetPhotoArea()
+  document.getElementById('action-btns').innerHTML=''
+  document.getElementById('photo-input').value=''
+  document.getElementById('modal').classList.add('open')
+}
+
+function resetPhotoArea() {
+  document.getElementById('photo-area').innerHTML=`
+    <button class="btn-primary" style="margin-top:0" onclick="document.getElementById('photo-input').click()">📸 Add Photo Proof (Required)</button>
+    <div style="text-align:center;font-size:11px;color:#F5E6C844;margin-top:8px;letter-spacing:1px">Photo required to log a split</div>`
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open')
+  pendingPlayerId=null; photoB64=null
+}
+
+async function handlePhoto(input) {
+  const file=input.files[0]; if(!file) return
+  const reader=new FileReader()
+  reader.onload=async ev => {
+    photoB64=await compressImage(ev.target.result)
+    document.getElementById('photo-area').innerHTML=`<img class="photo-preview" src="${photoB64}" alt="proof"/><button class="btn-ghost" onclick="clearPhoto()">Remove Photo</button>`
+    document.getElementById('action-btns').innerHTML=`<button class="btn-primary" onclick="confirmSplit()">✓ Confirm Split</button>`
+  }
+  reader.readAsDataURL(file)
+}
+
+function clearPhoto() {
+  photoB64=null
+  resetPhotoArea()
+  document.getElementById('action-btns').innerHTML=''
+  document.getElementById('photo-input').value=''
+}
+
+async function confirmSplit() {
+  if(!pendingPlayerId||!photoB64) return
+  const player=players.find(p=>p.id===pendingPlayerId); if(!player) return
+  try {
+    // Write to pending — not splits — until majority vote yes
+    await addDoc(collection(db,'groups',groupCode,'pending'),{
+      playerId:      pendingPlayerId,
+      playerName:    player.name,
+      timestamp:     serverTimestamp(),
+      photo:         photoB64,
+      submittedBy:   deviceId,
+      submitterName: player.name, // store name so others can see who submitted
+      votes:         {}
+    })
+    closeModal()
+    showToast('Split submitted — waiting for the lads to vote 🗳')
+  } catch(e) { showToast(e.message) }
+}
+
+async function castVote(pendingId, vote) {
+  try {
+    const ref = doc(db,'groups',groupCode,'pending',pendingId)
+    const snap = await getDoc(ref)
+    if (!snap.exists()) return
+    const data = snap.data()
+
+    // Block submitter from voting on their own split
+    if (data.submittedBy === deviceId) {
+      showToast("You can't vote on your own split 🙄")
+      return
+    }
+
+    // Add this device's vote
+    await updateDoc(ref, { [`votes.${deviceId}`]: vote })
+
+    // Re-fetch to get fresh vote counts
+    const snap2  = await getDoc(ref)
+    if (!snap2.exists()) return
+    const data2  = snap2.data()
+    const votes  = data2.votes || {}
+    const voters = players.length - 1  // everyone except submitter
+    const needed = Math.max(1, Math.floor(voters / 2) + 1)
+    const yesCount = Object.values(votes).filter(v=>v==='yes').length
+    const noCount  = Object.values(votes).filter(v=>v==='no').length
+
+    if (yesCount >= needed) {
+      await addDoc(collection(db,'groups',groupCode,'splits'),{
+        playerId:   data2.playerId,
+        playerName: data2.playerName,
+        timestamp:  serverTimestamp(),
+        photo:      data2.photo || null,
+      })
+      await deleteDoc(ref)
+      const el=document.getElementById('celebrate'); el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2600)
+    } else if (noCount >= needed) {
+      await addDoc(collection(db,'groups',groupCode,'rejected'),{
+        playerId:   data2.playerId,
+        playerName: data2.playerName,
+        timestamp:  serverTimestamp(),
+        photo:      data2.photo || null,
+        rejectedBy: 'vote'
+      })
+      await deleteDoc(ref)
+      showToast('Split rejected by the lads ✗')
+    }
+  } catch(e) { showToast(e.message) }
+}
+
+async function deletePending(id) {
+  if (!isLeader) return
+  if (!confirm('Reject this pending split?')) return
+  try {
+    const ref  = doc(db,'groups',groupCode,'pending',id)
+    const snap = await getDoc(ref)
+    if (snap.exists()) {
+      const d = snap.data()
+      await addDoc(collection(db,'groups',groupCode,'rejected'),{
+        playerId:   d.playerId,
+        playerName: d.playerName,
+        timestamp:  serverTimestamp(),
+        photo:      d.photo || null,
+        rejectedBy: 'leader'
+      })
+    }
+    await deleteDoc(ref)
+  } catch(e) { showToast(e.message) }
+}
+
+window.viewPendingPhoto = function(id) {
+  const s = pendingSplits.find(x=>x.id===id)
+  if(!s?.photo) return
+  const overlay = document.createElement('div')
+  overlay.style.cssText='position:fixed;inset:0;z-index:250;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;padding:20px;cursor:pointer'
+  overlay.onclick=()=>document.body.removeChild(overlay)
+  const img = document.createElement('img')
+  img.src=s.photo; img.style.cssText='max-width:100%;max-height:90vh;border-radius:8px;border:1px solid #C9A84C44'
+  overlay.appendChild(img); document.body.appendChild(overlay)
+}
+
+async function deleteSplit(id, playerName) {
+  if (!isLeader) return
+  if (!confirm(`Remove this split for ${playerName}?\n\nThis will deduct 1 point from their score.`)) return
+  try { await deleteDoc(doc(db,'groups',groupCode,'splits',id)) }
+  catch(e) { showToast(e.message) }
+}
+
+function viewPhoto(id, type) {
+  const list = type==='rejected' ? rejectedSplits : splits
+  const s = list.find(x=>x.id===id)
+  if(!s?.photo) return
+  const overlay = document.createElement('div')
+  overlay.style.cssText='position:fixed;inset:0;z-index:250;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;padding:20px;cursor:pointer'
+  overlay.onclick=()=>document.body.removeChild(overlay)
+  const img = document.createElement('img')
+  img.src=s.photo; img.style.cssText='max-width:100%;max-height:90vh;border-radius:8px;border:1px solid #C9A84C44'
+  overlay.appendChild(img); document.body.appendChild(overlay)
+}
+
+async function deleteRejected(id) {
+  if (!isLeader) return
+  if (!confirm('Remove this rejected split from the log?')) return
+  try { await deleteDoc(doc(db,'groups',groupCode,'rejected',id)) }
+  catch(e) { showToast(e.message) }
+}
+
+// ── Helpers ────────────────────────────────────────────────
+function showToast(msg) {
+  const el=document.getElementById('toast'); el.textContent='⚠ '+msg+' — tap to dismiss'; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),4000)
+}
+function esc(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+async function compressImage(dataUrl,maxW=600) {
+  return new Promise(resolve=>{const img=new Image();img.onload=()=>{const scale=Math.min(1,maxW/img.width);const c=document.createElement('canvas');c.width=img.width*scale;c.height=img.height*scale;c.getContext('2d').drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL('image/jpeg',0.55))};img.src=dataUrl})
+}
+
+function dismissInstall() { document.getElementById('install-banner').classList.remove('show'); localStorage.setItem('splitg-install-dismissed','1') }
+function showInstallPrompt() {
+  if(localStorage.getItem('splitg-install-dismissed')) return
+  if(window.navigator.standalone) return
+  if(window.matchMedia('(display-mode: standalone)').matches) return
+  if(document.getElementById('group-screen').style.display !== 'none') return
+  const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent), isAndroid=/android/i.test(navigator.userAgent)
+  const el=document.getElementById('install-steps')
+  if(isIOS) el.innerHTML=`Tap the <span>Share button</span> (box with arrow) in Safari, then <span>"Add to Home Screen"</span> 🍺`
+  else if(isAndroid) el.innerHTML=`Tap the <span>three dots menu</span> in Chrome, then <span>"Add to Home screen"</span> 🍺`
+  else return
+  setTimeout(()=>document.getElementById('install-banner').classList.add('show'),2000)
+}
+
+// ── Wire group screen buttons via addEventListener (most reliable on mobile) ──
+document.getElementById('btn-create').addEventListener('click', createGroup)
+document.getElementById('btn-join').addEventListener('click', joinGroup)
+document.getElementById('create-input').addEventListener('keydown', e => { if(e.key==='Enter') createGroup() })
+document.getElementById('join-input').addEventListener('keydown', e => { if(e.key==='Enter') joinGroup() })
+</script>
+</body>
+</html>
